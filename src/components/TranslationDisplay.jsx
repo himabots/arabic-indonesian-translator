@@ -13,24 +13,30 @@ const TranslationDisplay = ({ translations }) => {
   
   return (
     <div className="translation-container" ref={containerRef}>
-      <div className="translation-header">Translations (Bahasa Indonesia)</div>
       <div className="translation-content">
         {translations.length === 0 ? (
           <p className="no-translations">Translations will appear here...</p>
         ) : (
-          translations.map(entry => (
-            <div 
-              key={entry.id} 
-              className={`translation-entry ${entry.final ? 'final' : 'interim'}`}
-            >
-              <div className="translation-time">{entry.timestamp}</div>
-              <div className="translation-text">{entry.text}</div>
-            </div>
+          translations.map((entry, index) => (
+            <React.Fragment key={entry.id}>
+              {/* Add a separator if this is marked as a session end and not the last item */}
+              {index > 0 && translations[index-1].isSessionEnd && (
+                <div className="session-separator">
+                  <hr />
+                </div>
+              )}
+              <div 
+                className={`translation-entry ${entry.final ? 'final' : 'interim'}`}
+              >
+                <div className="translation-time">{entry.timestamp}</div>
+                <div className="translation-text">{entry.text}</div>
+              </div>
+            </React.Fragment>
           ))
         )}
       </div>
     </div>
   );
-};
+}
 
 export default TranslationDisplay;

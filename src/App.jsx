@@ -104,8 +104,7 @@ function App() {
   };
   
   const startRecording = async () => {
-    // Reset states
-    setTranslations([]);
+    // Reset recording session variables but DON'T clear translations history
     setFinalMode(false);
     audioChunksRef.current = [];
     allAudioChunksRef.current = [];
@@ -395,7 +394,8 @@ function App() {
             id: Date.now(), 
             text: result, 
             timestamp,
-            final: true 
+            final: true,
+            isSessionEnd: true // Mark this as a session end for visual separation
           }
         ]);
       } else {
@@ -406,6 +406,11 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
+  };
+  
+  // Clear all translations
+  const handleClearTranslations = () => {
+    setTranslations([]);
   };
   
   // Handle manual translation button click
@@ -423,6 +428,18 @@ function App() {
       </header>
       
       <main>
+        <div className="translations-header">
+          <h2>Translations</h2>
+          {translations.length > 0 && (
+            <button 
+              className="clear-button" 
+              onClick={handleClearTranslations}
+              aria-label="Clear all translations"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
         <TranslationDisplay translations={translations} />
         
         <div className="controls-container">

@@ -23,6 +23,35 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+}
+
+.translations-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.translations-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.clear-button {
+  background-color: transparent;
+  border: none;
+  color: #dc2626;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.clear-button:hover {
+  background-color: #fee2e2;
 }
 
 .controls-container {
@@ -31,6 +60,7 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 16px;
+  margin-top: 24px;
 }
 
 .buttons-row {
