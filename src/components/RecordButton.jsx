@@ -15,7 +15,7 @@ const RecordButton = ({ isRecording, isProcessing, onClick }) => {
         </>
       ) : (
         <>
-          <FaMicrophone /> Start Recording
+          <FaMicrophone /> {isProcessing ? 'Processing...' : 'Start Recording'}
         </>
       )}
     </button>

@@ -7,11 +7,17 @@ export default async function handler(req, res) {
     const { audio } = req.body;
     
     if (!audio) {
-      return res.status(400).json({ error: 'No audio data provided' });
+      return res.status(200).json({ translation: '' }); // Return empty instead of error
     }
     
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
+    
+    // Check if audio is too small (less than 5KB)
+    if (audioBuffer.length < 5000) {
+      console.log('Audio too small, skipping:', audioBuffer.length, 'bytes');
+      return res.status(200).json({ translation: '' });
+    }
     
     // Create FormData for Whisper API
     const formData = new FormData();
@@ -34,7 +40,7 @@ export default async function handler(req, res) {
       if (!whisperResponse.ok) {
         const errorData = await whisperResponse.text();
         console.error('Whisper API error:', errorData);
-        return res.status(200).json({ translation: '' }); // Return empty instead of error for continuous operation
+        return res.status(200).json({ translation: '' }); // Return empty instead of error
       }
       
       const transcription = await whisperResponse.json();

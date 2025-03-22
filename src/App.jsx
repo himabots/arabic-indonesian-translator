@@ -107,6 +107,10 @@ function App() {
   };
   
   const startAudioMonitoring = () => {
+    // Variable to track accumulated speech time
+    let speechDuration = 0;
+    const MIN_SPEECH_DURATION = 2000; // Minimum 2 seconds of speech before processing
+    
     const updateAudioLevel = () => {
       if (!analyserRef.current) return;
       
@@ -130,8 +134,9 @@ function App() {
         // Speech detected
         if (lastAudioLevelRef.current <= THRESHOLD) {
           console.log('Speech started');
-          // Speech just started
-          audioChunksRef.current = []; // Reset chunks for new speech
+          speechDuration = 0; // Reset duration for new speech
+        } else {
+          speechDuration += 16; // Approximately 16ms between animation frames
         }
         
         // Reset silence timer if it exists
@@ -140,13 +145,21 @@ function App() {
           silenceTimerRef.current = null;
         }
       } else if (lastAudioLevelRef.current > THRESHOLD) {
-        // Speech just ended, start silence timer
-        silenceTimerRef.current = setTimeout(() => {
-          console.log('Speech ended (silence detected)');
-          if (audioChunksRef.current.length > 0) {
-            processAudioSegment();
-          }
-        }, 1000); // Wait 1 second of silence before processing
+        // Speech just ended
+        // Only process if we had sufficient speech duration
+        if (speechDuration >= MIN_SPEECH_DURATION) {
+          silenceTimerRef.current = setTimeout(() => {
+            console.log('Speech ended (silence detected) after', speechDuration, 'ms');
+            if (audioChunksRef.current.length > 0) {
+              processAudioSegment();
+            }
+          }, 1000); // Wait 1 second of silence before processing
+        } else {
+          console.log('Speech too short, ignoring', speechDuration, 'ms');
+          audioChunksRef.current = []; // Clear too-short audio segments
+        }
+        
+        speechDuration = 0;
       }
       
       lastAudioLevelRef.current = scaledLevel;
@@ -207,8 +220,9 @@ function App() {
       // Combine all audio chunks into a single blob
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
       
-      // Only process if we have enough data
-      if (audioBlob.size > 1000) { // Minimum size threshold to avoid empty audio
+      // Only process if we have enough data (at least 5KB)
+      if (audioBlob.size > 5000) {
+        console.log('Processing audio segment of size:', audioBlob.size, 'bytes');
         const result = await translateAudioChunk(audioBlob);
         
         if (result) {
@@ -218,6 +232,8 @@ function App() {
             return prev + separator + result;
           });
         }
+      } else {
+        console.log('Audio segment too small, skipping:', audioBlob.size, 'bytes');
       }
     } catch (error) {
       console.error('Error processing audio segment:', error);

@@ -56,6 +56,12 @@ export function blobToBase64(blob) {
  */
 export async function translateAudioChunk(audioChunk) {
   try {
+    // Only process if audio is substantial enough
+    if (audioChunk.size < 5000) { // Minimum 5KB to avoid "too short" errors
+      console.log('Audio chunk too small, skipping:', audioChunk.size, 'bytes');
+      return '';
+    }
+    
     // Convert audio to base64
     const base64Audio = await blobToBase64(audioChunk);
     // Send to translation API
