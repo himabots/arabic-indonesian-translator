@@ -13,8 +13,8 @@ export default async function handler(req, res) {
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
     
-    // Skip processing if audio is too small - minimum 20KB to ensure it's long enough
-    if (audioBuffer.length < 20000) {
+    // Skip processing if audio is too small - minimum 10KB to ensure it's long enough
+    if (audioBuffer.length < 10000) {
       console.log('Audio too small, skipping:', audioBuffer.length, 'bytes');
       return res.status(200).json({ translation: '' });
     }

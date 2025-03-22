@@ -25,7 +25,7 @@ function App() {
   const speechStartTimeRef = useRef(0);
   const processingRef = useRef(false);
   const accumulatedBytesRef = useRef(0); // Track total size of accumulated audio
-  const minChunkSizeBytes = 20000; // Minimum 20KB before processing
+  const minChunkSizeBytes = 10000; // Minimum 10KB before processing (reduced from 20KB)
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -44,6 +44,23 @@ function App() {
       }
     };
   }, []);
+
+  const requestMicrophonePermission = async () => {
+    try {
+      // Try to get access directly (most browsers will prompt if needed)
+      console.log('Requesting microphone permission...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // If we get here, permission was granted
+      // Stop the stream right away since we're just checking permissions
+      stream.getTracks().forEach(track => track.stop());
+      console.log('Microphone permission granted');
+      return true;
+    } catch (error) {
+      console.error('Error requesting microphone permission:', error);
+      return false;
+    }
+  };
   
   const toggleRecording = async () => {
     if (isRecording) {
@@ -51,10 +68,34 @@ function App() {
       stopRecording();
     } else {
       try {
+        // First, check/request microphone permission
+        const hasPermission = await requestMicrophonePermission();
+        
+        if (!hasPermission) {
+          // Show a more helpful error message for mobile users
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          if (isMobile) {
+            alert('Microphone access is required but was denied. On mobile, you may need to:\n\n' +
+                  '1. Check your browser settings\n' +
+                  '2. Make sure the site has permission to use your microphone\n' +
+                  '3. Try reloading the page and allow access when prompted');
+          } else {
+            alert('Please allow microphone access to use this app.');
+          }
+          return;
+        }
+        
+        // Now start the recording
         await startRecording();
       } catch (error) {
-        console.error('Error starting recording:', error);
-        alert('Please allow microphone access to use this app.');
+        console.error('Error in toggleRecording:', error);
+        
+        // More detailed error message
+        const errorMessage = error.name === 'NotAllowedError' ? 
+          'Microphone access was denied. Please allow microphone access and try again.' :
+          'Error starting recording. Please make sure your device has a working microphone.';
+        
+        alert(errorMessage);
       }
     }
   };
@@ -68,59 +109,103 @@ function App() {
     audioChunksRef.current = [];
     allAudioChunksRef.current = [];
     
-    // Get audio stream
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      audio: { 
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      } 
-    });
-    
-    streamRef.current = stream;
-    
-    // Set up audio context for volume detection
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    audioContextRef.current = audioContext;
-    
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512; // Higher value for better frequency resolution
-    analyserRef.current = analyser;
-    
-    const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser);
-    
-    audioDataRef.current = new Uint8Array(analyser.frequencyBinCount);
-    
-    // Start monitoring audio levels
-    startAudioMonitoring();
-    
-    // Create media recorder with specific MIME type and bitrate
-    const options = { 
-      mimeType: 'audio/webm;codecs=opus',
-      audioBitsPerSecond: 128000 // 128 kbps for better quality
-    };
-    
-    const mediaRecorder = new MediaRecorder(stream, options);
-    mediaRecorderRef.current = mediaRecorder;
-    
-    // Handle audio data
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunksRef.current.push(event.data);
-        allAudioChunksRef.current.push(event.data); // Save for final processing
-        accumulatedBytesRef.current += event.data.size;
+    try {
+      // Get audio stream with explicit constraints for better mobile compatibility
+      const constraints = { 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          // Some mobile browsers work better with these explicit values
+          sampleRate: 44100,
+          channelCount: 1
+        } 
+      };
+      
+      console.log('Requesting audio stream with constraints:', constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      
+      // Log available audio tracks to verify we have audio
+      const audioTracks = stream.getAudioTracks();
+      console.log(`Got ${audioTracks.length} audio tracks:`, audioTracks.map(t => t.label));
+      
+      // Setup audio context and analyzer with error handling
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = audioContext;
+        
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        analyserRef.current = analyser;
+        
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+        
+        audioDataRef.current = new Uint8Array(analyser.frequencyBinCount);
+        
+        // Start monitoring audio levels
+        startAudioMonitoring();
+      } catch (audioContextError) {
+        console.error('Error setting up audio context:', audioContextError);
+        // Continue anyway, as we can still record even if visualization fails
       }
-    };
-    
-    // Start media recorder with smaller chunks for more granular data
-    mediaRecorder.start(500); // 500ms chunks for better responsiveness
-    setIsRecording(true);
-    
-    // Reset the silence detection
-    lastAudioLevelRef.current = 0;
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
+      
+      // Check for supported MIME types (important for mobile)
+      let options;
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options = { 
+          mimeType: 'audio/webm;codecs=opus',
+          audioBitsPerSecond: 128000 
+        };
+        console.log('Using audio/webm;codecs=opus');
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { 
+          mimeType: 'audio/webm',
+          audioBitsPerSecond: 128000 
+        };
+        console.log('Using audio/webm');
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options = { 
+          mimeType: 'audio/mp4',
+          audioBitsPerSecond: 128000 
+        };
+        console.log('Using audio/mp4');
+      } else {
+        // Use default options
+        options = {};
+        console.log('Using default MediaRecorder options');
+      }
+      
+      // Create media recorder with selected options
+      console.log('Creating MediaRecorder with options:', options);
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      // Handle audio data
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          console.log(`Audio chunk received: ${event.data.size} bytes`);
+          audioChunksRef.current.push(event.data);
+          allAudioChunksRef.current.push(event.data);
+          accumulatedBytesRef.current += event.data.size;
+          console.log(`Total accumulated bytes: ${accumulatedBytesRef.current}`);
+        }
+      };
+      
+      // Start media recorder
+      mediaRecorder.start(500);
+      console.log('MediaRecorder started');
+      setIsRecording(true);
+      
+      // Reset the silence detection
+      lastAudioLevelRef.current = 0;
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+    } catch (error) {
+      console.error('Error in startRecording:', error);
+      throw error; // Re-throw to be handled by toggleRecording
     }
   };
   
@@ -182,13 +267,14 @@ function App() {
           if (pauseDuration >= SPEECH_PAUSE_DURATION) {
             const speechDuration = Date.now() - speechStartTimeRef.current;
             
+            console.log(`Speech pause detected - Duration: ${speechDuration}ms, Accumulated bytes: ${accumulatedBytesRef.current}, Min required: ${minChunkSizeBytes}`);
+            
             // Only process if the speech segment was long enough, we have enough audio data,
             // and we're not already processing
             if (speechDuration >= MIN_SPEECH_DURATION && 
                 accumulatedBytesRef.current >= minChunkSizeBytes && 
                 !processingRef.current) {
-              console.log(`Speech ended after ${speechDuration}ms with ${pauseDuration}ms pause`);
-              console.log(`Accumulated audio size: ${accumulatedBytesRef.current} bytes`);
+              console.log(`Will process speech segment - sufficient data collected`);
               
               // Process the audio if we have enough chunks
               if (audioChunksRef.current.length > 0) {
@@ -196,9 +282,10 @@ function App() {
               }
             } else {
               console.log(
-                `Not processing yet: duration=${speechDuration}ms, ` +
-                `size=${accumulatedBytesRef.current} bytes, ` +
-                `processing=${processingRef.current}`
+                `Not processing yet - ` +
+                `speech duration: ${speechDuration}ms (min: ${MIN_SPEECH_DURATION}ms), ` +
+                `accumulated bytes: ${accumulatedBytesRef.current} (min: ${minChunkSizeBytes}), ` +
+                `already processing: ${processingRef.current}`
               );
             }
             
@@ -294,11 +381,14 @@ function App() {
       setLastPauseTime(Date.now());
       
       if (result) {
+        console.log('Translation received:', result);
         // Append to existing translation with a space
         setTranslation(prev => {
           const separator = prev ? ' ' : '';
           return prev + separator + result;
         });
+      } else {
+        console.log('No translation result received');
       }
     } catch (error) {
       console.error('Error processing audio segment:', error);
@@ -326,7 +416,10 @@ function App() {
       });
       
       if (result) {
+        console.log('Final translation received:', result);
         setTranslation(result);
+      } else {
+        console.log('No final translation result received');
       }
     } catch (error) {
       console.error('Error processing final recording:', error);
