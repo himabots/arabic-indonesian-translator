@@ -15,11 +15,17 @@ export async function sendAudioForTranslation(base64Audio) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ audio: base64Audio }),
+    }).catch(error => {
+      console.error('Fetch error in sendAudioForTranslation:', error);
+      return { ok: false, json: () => Promise.resolve({}) };
     });
 
     // Never show errors to the user, just return empty string or translation
     try {
-      const data = await response.json();
+      const data = await response.json().catch(error => {
+        console.error('JSON parse error:', error);
+        return {};
+      });
       return data.translation || '';
     } catch (parseError) {
       console.error('Error parsing JSON response:', parseError);
@@ -37,22 +43,27 @@ export async function sendAudioForTranslation(base64Audio) {
  * @returns {Promise<string>} Promise resolving to base64 string
  */
 export function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      try {
-        const base64String = reader.result.split(',')[1];
-        resolve(base64String);
-      } catch (error) {
-        console.error('Error extracting base64:', error);
+  return new Promise((resolve) => {
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        try {
+          const base64String = reader.result.split(',')[1];
+          resolve(base64String);
+        } catch (error) {
+          console.error('Error extracting base64:', error);
+          resolve(''); // Resolve with empty string instead of rejecting
+        }
+      };
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
         resolve(''); // Resolve with empty string instead of rejecting
-      }
-    };
-    reader.onerror = (error) => {
-      console.error('FileReader error:', error);
-      resolve(''); // Resolve with empty string instead of rejecting
-    };
-    reader.readAsDataURL(blob);
+      };
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      console.error('Error in blobToBase64:', error);
+      resolve('');
+    }
   });
 }
 

@@ -13,8 +13,8 @@ export default async function handler(req, res) {
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
     
-    // Skip processing if audio is too small
-    if (audioBuffer.length < 15000) {
+    // Skip processing if audio is too small - minimum 20KB to ensure it's long enough
+    if (audioBuffer.length < 20000) {
       console.log('Audio too small, skipping:', audioBuffer.length, 'bytes');
       return res.status(200).json({ translation: '' });
     }
@@ -23,9 +23,9 @@ export default async function handler(req, res) {
       // Create FormData for Whisper API
       const formData = new FormData();
       
-      // Try a different MIME type
-      const audioBlob = new Blob([audioBuffer], { type: 'audio/wav' });
-      formData.append('file', audioBlob, 'speech.wav');
+      // Use proper MIME type that Whisper expects
+      const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' });
+      formData.append('file', audioBlob, 'speech.webm');
       formData.append('model', 'whisper-large-v3');
       
       const whisperResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
