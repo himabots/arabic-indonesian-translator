@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import hark from 'hark';
 import RecordButton from './components/RecordButton';
 import TranslationDisplay from './components/TranslationDisplay';
 import { translateAudioChunk } from './api/translateAudio';
@@ -9,14 +8,17 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [translation, setTranslation] = useState('');
-  const [originalText, setOriginalText] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
-  const speechEventsRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const audioDataRef = useRef(new Uint8Array(0));
+  const animationFrameRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const isSpeakingRef = useRef(false);
+  const silenceTimerRef = useRef(null);
+  const lastAudioLevelRef = useRef(0);
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -24,8 +26,14 @@ function App() {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
-      if (speechEventsRef.current) {
-        speechEventsRef.current.stop();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
       }
     };
   }, []);
@@ -47,7 +55,6 @@ function App() {
   const startRecording = async () => {
     // Reset states
     setTranslation('');
-    setOriginalText('');
     
     // Get audio stream
     const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -60,37 +67,21 @@ function App() {
     
     streamRef.current = stream;
     
-    // Set up voice activity detection
-    const speechEvents = hark(stream, {
-      threshold: -65,     // Sensitivity (-80 to -20, lower is more sensitive)
-      interval: 100       // How often to check for speech in ms
-    });
+    // Set up audio context for volume detection
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextRef.current = audioContext;
     
-    speechEventsRef.current = speechEvents;
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    analyserRef.current = analyser;
     
-    // Configure speech detection events
-    speechEvents.on('speaking', () => {
-      console.log('Speech started');
-      isSpeakingRef.current = true;
-      audioChunksRef.current = []; // Reset chunks for new speech segment
-    });
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
     
-    speechEvents.on('stopped_speaking', async () => {
-      console.log('Speech ended');
-      isSpeakingRef.current = false;
-      
-      // Only process if we have audio chunks
-      if (audioChunksRef.current.length > 0) {
-        await processAudioSegment();
-      }
-    });
+    audioDataRef.current = new Uint8Array(analyser.frequencyBinCount);
     
-    // Track volume level for UI feedback
-    speechEvents.on('volume_change', (volume) => {
-      // Convert to a 0-100 scale for easier use in UI
-      const level = Math.min(100, Math.max(0, (volume + 100) * 1.8));
-      setAudioLevel(level);
-    });
+    // Start monitoring audio levels
+    startAudioMonitoring();
     
     // Create media recorder
     const options = { mimeType: 'audio/webm;codecs=opus' };
@@ -105,8 +96,69 @@ function App() {
     };
     
     // Start media recorder and update state
-    mediaRecorder.start(100); // Collect audio in 100ms chunks
+    mediaRecorder.start(1000); // Collect audio in 1s chunks
     setIsRecording(true);
+    
+    // Reset the silence detection
+    lastAudioLevelRef.current = 0;
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
+  };
+  
+  const startAudioMonitoring = () => {
+    const updateAudioLevel = () => {
+      if (!analyserRef.current) return;
+      
+      analyserRef.current.getByteFrequencyData(audioDataRef.current);
+      
+      // Calculate average volume level
+      let sum = 0;
+      for (let i = 0; i < audioDataRef.current.length; i++) {
+        sum += audioDataRef.current[i];
+      }
+      const avg = sum / audioDataRef.current.length;
+      
+      // Scale to 0-100 for UI
+      const scaledLevel = Math.min(100, Math.max(0, avg * 100 / 256));
+      setAudioLevel(scaledLevel);
+      
+      // Detect significant audio for speech segments
+      const THRESHOLD = 15; // Adjust based on testing
+      
+      if (scaledLevel > THRESHOLD) {
+        // Speech detected
+        if (lastAudioLevelRef.current <= THRESHOLD) {
+          console.log('Speech started');
+          // Speech just started
+          audioChunksRef.current = []; // Reset chunks for new speech
+        }
+        
+        // Reset silence timer if it exists
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      } else if (lastAudioLevelRef.current > THRESHOLD) {
+        // Speech just ended, start silence timer
+        silenceTimerRef.current = setTimeout(() => {
+          console.log('Speech ended (silence detected)');
+          if (audioChunksRef.current.length > 0) {
+            processAudioSegment();
+          }
+        }, 1000); // Wait 1 second of silence before processing
+      }
+      
+      lastAudioLevelRef.current = scaledLevel;
+      
+      // Continue monitoring if still recording
+      if (isRecording) {
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+      }
+    };
+    
+    // Start the monitoring loop
+    animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
   };
   
   const stopRecording = () => {
@@ -115,9 +167,22 @@ function App() {
       mediaRecorderRef.current.stop();
     }
     
-    // Stop speech events
-    if (speechEventsRef.current) {
-      speechEventsRef.current.stop();
+    // Stop audio context
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
+    // Stop animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    // Clear silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
     
     // Stop all tracks in the stream
