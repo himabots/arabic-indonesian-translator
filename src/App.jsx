@@ -9,6 +9,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [translation, setTranslation] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [lastPauseTime, setLastPauseTime] = useState(0);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -19,6 +20,8 @@ function App() {
   const audioChunksRef = useRef([]);
   const silenceTimerRef = useRef(null);
   const lastAudioLevelRef = useRef(0);
+  const speechStartTimeRef = useRef(0);
+  const processingRef = useRef(false);
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -55,6 +58,7 @@ function App() {
   const startRecording = async () => {
     // Reset states
     setTranslation('');
+    setLastPauseTime(0);
     
     // Get audio stream
     const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -72,7 +76,7 @@ function App() {
     audioContextRef.current = audioContext;
     
     const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
+    analyser.fftSize = 512; // Higher value for better frequency resolution
     analyserRef.current = analyser;
     
     const source = audioContext.createMediaStreamSource(stream);
@@ -83,8 +87,12 @@ function App() {
     // Start monitoring audio levels
     startAudioMonitoring();
     
-    // Create media recorder
-    const options = { mimeType: 'audio/webm;codecs=opus' };
+    // Create media recorder with specific MIME type and bitrate
+    const options = { 
+      mimeType: 'audio/webm;codecs=opus',
+      audioBitsPerSecond: 128000 // 128 kbps for better quality
+    };
+    
     const mediaRecorder = new MediaRecorder(stream, options);
     mediaRecorderRef.current = mediaRecorder;
     
@@ -95,8 +103,8 @@ function App() {
       }
     };
     
-    // Start media recorder and update state
-    mediaRecorder.start(1000); // Collect audio in 1s chunks
+    // Start media recorder with smaller chunks for more granular data
+    mediaRecorder.start(500); // 500ms chunks for better responsiveness
     setIsRecording(true);
     
     // Reset the silence detection
@@ -107,59 +115,77 @@ function App() {
   };
   
   const startAudioMonitoring = () => {
-    // Variable to track accumulated speech time
-    let speechDuration = 0;
-    const MIN_SPEECH_DURATION = 5000; // Minimum 5 seconds of speech before processing
+    // Speech detection parameters
+    const NOISE_THRESHOLD = 10; // Lower threshold to detect more subtle speech
+    const SPEECH_PAUSE_DURATION = 800; // 800ms of silence to consider it a pause
+    const MIN_SPEECH_DURATION = 2000; // Minimum 2 seconds of speech to process
+    
+    let isSpeaking = false;
+    let pauseStartTime = 0;
+    let consecutiveLowVolumes = 0;
     
     const updateAudioLevel = () => {
       if (!analyserRef.current) return;
       
       analyserRef.current.getByteFrequencyData(audioDataRef.current);
       
-      // Calculate average volume level
-      let sum = 0;
+      // Calculate RMS (Root Mean Square) for better volume representation
+      let sumSquares = 0;
       for (let i = 0; i < audioDataRef.current.length; i++) {
-        sum += audioDataRef.current[i];
+        sumSquares += Math.pow(audioDataRef.current[i], 2);
       }
-      const avg = sum / audioDataRef.current.length;
+      const rms = Math.sqrt(sumSquares / audioDataRef.current.length);
       
       // Scale to 0-100 for UI
-      const scaledLevel = Math.min(100, Math.max(0, avg * 100 / 256));
+      const scaledLevel = Math.min(100, Math.max(0, rms * 100 / 128));
       setAudioLevel(scaledLevel);
       
-      // Detect significant audio for speech segments
-      const THRESHOLD = 15; // Adjust based on testing
-      
-      if (scaledLevel > THRESHOLD) {
-        // Speech detected
-        if (lastAudioLevelRef.current <= THRESHOLD) {
+      // Speech detection logic with improved pause detection
+      if (scaledLevel > NOISE_THRESHOLD) {
+        // Reset pause counter when we detect sound
+        consecutiveLowVolumes = 0;
+        
+        if (!isSpeaking) {
           console.log('Speech started');
-          speechDuration = 0; // Reset duration for new speech
-        } else {
-          speechDuration += 16; // Approximately 16ms between animation frames
+          isSpeaking = true;
+          speechStartTimeRef.current = Date.now();
         }
         
-        // Reset silence timer if it exists
+        // Clear any silence timer
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
         }
-      } else if (lastAudioLevelRef.current > THRESHOLD) {
-        // Speech just ended
-        // Only process if we had sufficient speech duration
-        if (speechDuration >= MIN_SPEECH_DURATION) {
-          silenceTimerRef.current = setTimeout(() => {
-            console.log('Speech ended (silence detected) after', speechDuration, 'ms');
-            if (audioChunksRef.current.length > 0) {
-              processAudioSegment();
-            }
-          }, 1000); // Wait 1 second of silence before processing
-        } else {
-          console.log('Speech too short, ignoring', speechDuration, 'ms');
-          audioChunksRef.current = []; // Clear too-short audio segments
-        }
+      } else {
+        // Count consecutive low volumes for more stable pause detection
+        consecutiveLowVolumes++;
         
-        speechDuration = 0;
+        // If we have enough consecutive low readings and we were speaking
+        if (consecutiveLowVolumes > 10 && isSpeaking) { // About 160ms of consecutive low volume
+          if (pauseStartTime === 0) {
+            pauseStartTime = Date.now();
+          }
+          
+          // If pause is long enough, consider it a real pause
+          const pauseDuration = Date.now() - pauseStartTime;
+          
+          if (pauseDuration >= SPEECH_PAUSE_DURATION) {
+            const speechDuration = Date.now() - speechStartTimeRef.current;
+            
+            // Only process if the speech segment was long enough and we're not already processing
+            if (speechDuration >= MIN_SPEECH_DURATION && !processingRef.current) {
+              console.log(`Speech ended after ${speechDuration}ms with ${pauseDuration}ms pause`);
+              
+              // Process the audio if we have enough chunks
+              if (audioChunksRef.current.length > 0) {
+                processSpeechSegment();
+              }
+              
+              isSpeaking = false;
+              pauseStartTime = 0;
+            }
+          }
+        }
       }
       
       lastAudioLevelRef.current = scaledLevel;
@@ -205,7 +231,7 @@ function App() {
     
     // Process any remaining audio
     if (audioChunksRef.current.length > 0) {
-      processAudioSegment();
+      processSpeechSegment(true); // true indicates final processing
     }
     
     // Reset audio level
@@ -213,17 +239,35 @@ function App() {
     setIsRecording(false);
   };
   
-  const processAudioSegment = async () => {
+  const processSpeechSegment = async (isFinal = false) => {
+    // Set processing flag to prevent multiple simultaneous processing
+    if (processingRef.current && !isFinal) return;
+    
+    processingRef.current = true;
     setIsProcessing(true);
     
     try {
-      // Combine all audio chunks into a single blob
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+      // Make a copy of the current chunks and then clear the array for new data
+      const chunksToProcess = [...audioChunksRef.current];
+      audioChunksRef.current = [];
       
-      // Only process if we have enough data (at least 10KB)
-      if (audioBlob.size > 10000) {
+      // Combine all audio chunks into a single blob with proper MIME type
+      const audioBlob = new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' });
+      
+      // Only process if we have enough data (at least 15KB for a good quality segment)
+      if (audioBlob.size > 15000 || isFinal) {
         console.log('Processing audio segment of size:', audioBlob.size, 'bytes');
+        
+        // Pause between processing segments to avoid overwhelming the API
+        const now = Date.now();
+        const timeSinceLastPause = now - lastPauseTime;
+        if (timeSinceLastPause < 1000 && !isFinal) {
+          // If less than 1 second since last processing, wait a bit
+          await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastPause));
+        }
+        
         const result = await translateAudioChunk(audioBlob);
+        setLastPauseTime(Date.now());
         
         if (result) {
           // Append to existing translation with a space
@@ -238,7 +282,7 @@ function App() {
     } catch (error) {
       console.error('Error processing audio segment:', error);
     } finally {
-      audioChunksRef.current = []; // Clear chunks after processing
+      processingRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -272,7 +316,7 @@ function App() {
         
         {isRecording && (
           <div className="recording-indicator">
-            Recording... (tap Stop when finished)
+            Recording... (translation will appear after speech pauses)
           </div>
         )}
         

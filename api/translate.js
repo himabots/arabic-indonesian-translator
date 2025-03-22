@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(200).json({ translation: '' }); // Return empty instead of error
+    return res.status(200).json({ translation: '' });
   }
 
   try {
@@ -13,22 +13,21 @@ export default async function handler(req, res) {
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
     
-    // Check if audio is too small
-    if (audioBuffer.length < 10000) { // Increase minimum size to 10KB
+    // Skip processing if audio is too small
+    if (audioBuffer.length < 15000) {
       console.log('Audio too small, skipping:', audioBuffer.length, 'bytes');
       return res.status(200).json({ translation: '' });
     }
     
-    // Create FormData for Whisper API
-    const formData = new FormData();
-    
-    // Try a different approach - convert to mp3 format or use raw PCM
-    // For now, just change the MIME type and filename
-    const audioBlob = new Blob([audioBuffer], { type: 'audio/mp3' });
-    formData.append('file', audioBlob, 'speech.mp3');
-    formData.append('model', 'whisper-large-v3');
-    
     try {
+      // Create FormData for Whisper API
+      const formData = new FormData();
+      
+      // Use proper MIME type that Whisper expects
+      const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' });
+      formData.append('file', audioBlob, 'speech.webm');
+      formData.append('model', 'whisper-large-v3');
+      
       const whisperResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
@@ -38,8 +37,7 @@ export default async function handler(req, res) {
       });
       
       if (!whisperResponse.ok) {
-        // Handle error gracefully without alerting the user
-        console.error('Whisper API error status:', whisperResponse.status);
+        console.error('Whisper API error:', whisperResponse.status);
         return res.status(200).json({ translation: '' });
       }
       
@@ -49,8 +47,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ translation: '' });
       }
       
-      // Only proceed with translation if we have transcribed text
       const arabicText = transcription.text.trim();
+      console.log('Transcribed text:', arabicText);
       
       // Send to translation API
       const translationResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -77,12 +75,13 @@ export default async function handler(req, res) {
       });
       
       if (!translationResponse.ok) {
-        console.error('Translation API error status:', translationResponse.status);
+        console.error('Translation API error:', translationResponse.status);
         return res.status(200).json({ translation: '' });
       }
       
       const translationResult = await translationResponse.json();
       const translation = translationResult.choices[0].message.content;
+      console.log('Translation result:', translation);
       
       return res.status(200).json({ translation });
       

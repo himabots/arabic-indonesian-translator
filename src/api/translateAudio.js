@@ -5,7 +5,7 @@
 /**
  * Sends audio data to the translation API
  * @param {string} base64Audio - Base64-encoded audio data
- * @returns {Promise<object>} The API response with translation
+ * @returns {Promise<string>} The translated text
  */
 export async function sendAudioForTranslation(base64Audio) {
   try {
@@ -19,16 +19,16 @@ export async function sendAudioForTranslation(base64Audio) {
 
     const data = await response.json();
     
-    // Never throw errors, just return empty translation if there's an issue
+    // Never show errors to the user
     if (!response.ok) {
       console.error('Translation API error:', data);
-      return { translation: '' };
+      return '';
     }
 
-    return data;
+    return data.translation || '';
   } catch (error) {
     console.error('Error sending audio for translation:', error);
-    return { translation: '' };
+    return '';
   }
 }
 
@@ -56,17 +56,11 @@ export function blobToBase64(blob) {
  */
 export async function translateAudioChunk(audioChunk) {
   try {
-    // Only process if audio is substantial enough
-    if (audioChunk.size < 10000) { // Minimum 10KB to avoid "too short" errors
-      console.log('Audio chunk too small, skipping:', audioChunk.size, 'bytes');
-      return '';
-    }
-    
     // Convert audio to base64
     const base64Audio = await blobToBase64(audioChunk);
+    
     // Send to translation API
-    const response = await sendAudioForTranslation(base64Audio);
-    return response.translation || '';
+    return await sendAudioForTranslation(base64Audio);
   } catch (error) {
     console.error('Error processing audio chunk:', error);
     return '';
