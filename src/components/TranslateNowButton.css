@@ -1,0 +1,23 @@
+.translate-now-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  font-size: 16px;
+  border-radius: 20px;
+  border: none;
+  background-color: #2563eb;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 10px;
+}
+
+.translate-now-button:hover {
+  background-color: #1d4ed8;
+}
+
+.translate-now-button.disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+}

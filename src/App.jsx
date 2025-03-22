@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import RecordButton from './components/RecordButton';
 import TranslationDisplay from './components/TranslationDisplay';
+import TranslateNowButton from './components/TranslateNowButton';
 import { translateAudioChunk } from './api/translateAudio';
 import './App.css';
 
 function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [translation, setTranslation] = useState('');
+  const [translations, setTranslations] = useState([]); // Array of translation entries
   const [audioLevel, setAudioLevel] = useState(0);
-  const [lastPauseTime, setLastPauseTime] = useState(0);
   const [finalMode, setFinalMode] = useState(false);
   
   const mediaRecorderRef = useRef(null);
@@ -20,12 +20,12 @@ function App() {
   const animationFrameRef = useRef(null);
   const audioChunksRef = useRef([]);
   const allAudioChunksRef = useRef([]); // Store all audio for final processing
-  const silenceTimerRef = useRef(null);
-  const lastAudioLevelRef = useRef(0);
-  const speechStartTimeRef = useRef(0);
   const processingRef = useRef(false);
-  const accumulatedBytesRef = useRef(0); // Track total size of accumulated audio
-  const minChunkSizeBytes = 10000; // Minimum 10KB before processing (reduced from 20KB)
+  const translationIntervalRef = useRef(null);
+  const lastTranslationTimeRef = useRef(0);
+  
+  // Auto-translation interval in milliseconds
+  const AUTO_TRANSLATION_INTERVAL = 5000; // 5 seconds
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -39,8 +39,8 @@ function App() {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
+      if (translationIntervalRef.current) {
+        clearInterval(translationIntervalRef.current);
       }
     };
   }, []);
@@ -102,12 +102,11 @@ function App() {
   
   const startRecording = async () => {
     // Reset states
-    setTranslation('');
-    setLastPauseTime(0);
+    setTranslations([]);
     setFinalMode(false);
-    accumulatedBytesRef.current = 0;
     audioChunksRef.current = [];
     allAudioChunksRef.current = [];
+    lastTranslationTimeRef.current = Date.now();
     
     try {
       // Get audio stream with explicit constraints for better mobile compatibility
@@ -185,11 +184,8 @@ function App() {
       // Handle audio data
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          console.log(`Audio chunk received: ${event.data.size} bytes`);
           audioChunksRef.current.push(event.data);
           allAudioChunksRef.current.push(event.data);
-          accumulatedBytesRef.current += event.data.size;
-          console.log(`Total accumulated bytes: ${accumulatedBytesRef.current}`);
         }
       };
       
@@ -198,11 +194,14 @@ function App() {
       console.log('MediaRecorder started');
       setIsRecording(true);
       
-      // Reset the silence detection
-      lastAudioLevelRef.current = 0;
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
+      // Set up auto-translation interval
+      translationIntervalRef.current = setInterval(() => {
+        if (audioChunksRef.current.length > 0 && !processingRef.current) {
+          console.log('Auto-translation triggered after 5 seconds');
+          processCurrentAudio();
+        }
+      }, AUTO_TRANSLATION_INTERVAL);
+      
     } catch (error) {
       console.error('Error in startRecording:', error);
       throw error; // Re-throw to be handled by toggleRecording
@@ -210,15 +209,6 @@ function App() {
   };
   
   const startAudioMonitoring = () => {
-    // Speech detection parameters
-    const NOISE_THRESHOLD = 10; // Lower threshold to detect more subtle speech
-    const SPEECH_PAUSE_DURATION = 1000; // 1 second of silence to consider it a pause
-    const MIN_SPEECH_DURATION = 2000; // Minimum 2 seconds of speech to process
-    
-    let isSpeaking = false;
-    let pauseStartTime = 0;
-    let consecutiveLowVolumes = 0;
-    
     const updateAudioLevel = () => {
       if (!analyserRef.current) return;
       
@@ -235,68 +225,6 @@ function App() {
       const scaledLevel = Math.min(100, Math.max(0, rms * 100 / 128));
       setAudioLevel(scaledLevel);
       
-      // Speech detection logic with improved pause detection
-      if (scaledLevel > NOISE_THRESHOLD) {
-        // Reset pause counter when we detect sound
-        consecutiveLowVolumes = 0;
-        
-        if (!isSpeaking) {
-          console.log('Speech started');
-          isSpeaking = true;
-          speechStartTimeRef.current = Date.now();
-        }
-        
-        // Clear any silence timer
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-      } else {
-        // Count consecutive low volumes for more stable pause detection
-        consecutiveLowVolumes++;
-        
-        // If we have enough consecutive low readings and we were speaking
-        if (consecutiveLowVolumes > 10 && isSpeaking) { // About 160ms of consecutive low volume
-          if (pauseStartTime === 0) {
-            pauseStartTime = Date.now();
-          }
-          
-          // If pause is long enough, consider it a real pause
-          const pauseDuration = Date.now() - pauseStartTime;
-          
-          if (pauseDuration >= SPEECH_PAUSE_DURATION) {
-            const speechDuration = Date.now() - speechStartTimeRef.current;
-            
-            console.log(`Speech pause detected - Duration: ${speechDuration}ms, Accumulated bytes: ${accumulatedBytesRef.current}, Min required: ${minChunkSizeBytes}`);
-            
-            // Only process if the speech segment was long enough, we have enough audio data,
-            // and we're not already processing
-            if (speechDuration >= MIN_SPEECH_DURATION && 
-                accumulatedBytesRef.current >= minChunkSizeBytes && 
-                !processingRef.current) {
-              console.log(`Will process speech segment - sufficient data collected`);
-              
-              // Process the audio if we have enough chunks
-              if (audioChunksRef.current.length > 0) {
-                processSpeechSegment();
-              }
-            } else {
-              console.log(
-                `Not processing yet - ` +
-                `speech duration: ${speechDuration}ms (min: ${MIN_SPEECH_DURATION}ms), ` +
-                `accumulated bytes: ${accumulatedBytesRef.current} (min: ${minChunkSizeBytes}), ` +
-                `already processing: ${processingRef.current}`
-              );
-            }
-            
-            isSpeaking = false;
-            pauseStartTime = 0;
-          }
-        }
-      }
-      
-      lastAudioLevelRef.current = scaledLevel;
-      
       // Continue monitoring if still recording
       if (isRecording) {
         animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
@@ -308,6 +236,12 @@ function App() {
   };
   
   const stopRecording = () => {
+    // Stop auto-translation interval
+    if (translationIntervalRef.current) {
+      clearInterval(translationIntervalRef.current);
+      translationIntervalRef.current = null;
+    }
+    
     // Stop media recorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -323,12 +257,6 @@ function App() {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
-    }
-    
-    // Clear silence timer
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
     }
     
     // Stop all tracks in the stream
@@ -347,49 +275,49 @@ function App() {
     setIsRecording(false);
   };
   
-  const processSpeechSegment = async () => {
-    // Set processing flag to prevent multiple simultaneous processing
-    if (processingRef.current) return;
+  const processCurrentAudio = async () => {
+    // Don't process if already processing or no audio
+    if (processingRef.current || audioChunksRef.current.length === 0) return;
     
     processingRef.current = true;
     setIsProcessing(true);
     
     try {
-      // Make a copy of the current chunks and then clear the array for new data
+      // Make a copy of the current chunks
       const chunksToProcess = [...audioChunksRef.current];
-      audioChunksRef.current = [];
-      accumulatedBytesRef.current = 0; // Reset accumulated bytes count
       
-      // Combine all audio chunks into a single blob with proper MIME type
+      // Clear the chunks array to collect new audio while processing
+      audioChunksRef.current = [];
+      
+      // Combine audio chunks into a single blob
       const audioBlob = new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' });
       
-      console.log('Processing audio segment of size:', audioBlob.size, 'bytes');
+      console.log('Processing interim audio segment of size:', audioBlob.size, 'bytes');
       
-      // Pause between processing segments to avoid overwhelming the API
-      const now = Date.now();
-      const timeSinceLastPause = now - lastPauseTime;
-      if (timeSinceLastPause < 1000) {
-        // If less than 1 second since last processing, wait a bit
-        await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastPause));
-      }
-      
-      const result = await translateAudioChunk(audioBlob).catch(error => {
+      const translationResult = await translateAudioChunk(audioBlob).catch(error => {
         console.error('Error in translateAudioChunk:', error);
         return '';
       });
       
-      setLastPauseTime(Date.now());
-      
-      if (result) {
-        console.log('Translation received:', result);
-        // Append to existing translation with a space
-        setTranslation(prev => {
-          const separator = prev ? ' ' : '';
-          return prev + separator + result;
-        });
+      if (translationResult) {
+        console.log('Translation received:', translationResult);
+        
+        // Add new translation to the history with timestamp
+        const timestamp = new Date().toLocaleTimeString();
+        setTranslations(prev => [
+          ...prev, 
+          { 
+            id: Date.now(), 
+            text: translationResult, 
+            timestamp,
+            interim: true 
+          }
+        ]);
       } else {
         console.log('No translation result received');
       }
+      
+      lastTranslationTimeRef.current = Date.now();
     } catch (error) {
       console.error('Error processing audio segment:', error);
     } finally {
@@ -407,9 +335,6 @@ function App() {
       
       console.log('Processing final recording of size:', audioBlob.size, 'bytes');
       
-      // For final processing, clear translation first to show only the complete result
-      setTranslation('');
-      
       const result = await translateAudioChunk(audioBlob).catch(error => {
         console.error('Error in final translateAudioChunk:', error);
         return '';
@@ -417,7 +342,18 @@ function App() {
       
       if (result) {
         console.log('Final translation received:', result);
-        setTranslation(result);
+        
+        // Add final translation with timestamp
+        const timestamp = new Date().toLocaleTimeString();
+        setTranslations(prev => [
+          ...prev, 
+          { 
+            id: Date.now(), 
+            text: result, 
+            timestamp,
+            final: true 
+          }
+        ]);
       } else {
         console.log('No final translation result received');
       }
@@ -425,6 +361,13 @@ function App() {
       console.error('Error processing final recording:', error);
     } finally {
       setIsProcessing(false);
+    }
+  };
+  
+  // Handle manual translation button click
+  const handleTranslateNowClick = () => {
+    if (isRecording && !processingRef.current && audioChunksRef.current.length > 0) {
+      processCurrentAudio();
     }
   };
   
@@ -436,40 +379,49 @@ function App() {
       </header>
       
       <main>
-        <TranslationDisplay text={translation} />
+        <TranslationDisplay translations={translations} />
         
-        {isRecording && (
-          <div className="audio-level-indicator">
-            <div className="audio-level-bar">
-              <div 
-                className="audio-level-fill"
-                style={{ width: `${audioLevel}%` }}
-              ></div>
+        <div className="controls-container">
+          {isRecording && (
+            <div className="audio-level-indicator">
+              <div className="audio-level-bar">
+                <div 
+                  className="audio-level-fill"
+                  style={{ width: `${audioLevel}%` }}
+                ></div>
+              </div>
             </div>
+          )}
+          
+          <div className="buttons-row">
+            <RecordButton 
+              isRecording={isRecording} 
+              isProcessing={isProcessing}
+              onClick={toggleRecording} 
+            />
+            
+            {isRecording && (
+              <TranslateNowButton 
+                onClick={handleTranslateNowClick}
+                disabled={isProcessing || audioChunksRef.current.length === 0}
+              />
+            )}
           </div>
-        )}
-        
-        <RecordButton 
-          isRecording={isRecording} 
-          isProcessing={isProcessing}
-          onClick={toggleRecording} 
-        />
-        
-        {isRecording && (
-          <div className="recording-indicator">
-            {accumulatedBytesRef.current < minChunkSizeBytes ? 
-              "Recording... (Waiting for enough speech to process)" :
-              "Recording... (Translation will appear after speech pauses)"}
-          </div>
-        )}
-        
-        {isProcessing && (
-          <div className="processing-indicator">
-            {finalMode ? 
-              "Processing final translation..." : 
-              "Processing translation..."}
-          </div>
-        )}
+          
+          {isRecording && (
+            <div className="recording-indicator">
+              Recording... (Translations appear every 5 seconds)
+            </div>
+          )}
+          
+          {isProcessing && (
+            <div className="processing-indicator">
+              {finalMode ? 
+                "Processing final translation..." : 
+                "Processing translation..."}
+            </div>
+          )}
+        </div>
       </main>
       
       <footer>
