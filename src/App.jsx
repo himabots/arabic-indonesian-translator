@@ -29,8 +29,8 @@ function App() {
   const lastProcessedIndexRef = useRef(0); // Last processed chunk index
   
   // Auto-translation interval in milliseconds
-  const AUTO_TRANSLATION_INTERVAL = 5000; // 5 seconds
-  const AUTO_MODE_CYCLE_INTERVAL = 5000; // 5 seconds for auto mode cycle
+  const AUTO_TRANSLATION_INTERVAL = 15000; // 15 seconds
+  const AUTO_MODE_CYCLE_INTERVAL = 15000; // 15 seconds for auto mode cycle
   
   // Clean up resources when component unmounts
   useEffect(() => {

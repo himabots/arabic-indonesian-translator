@@ -12,7 +12,7 @@ const AutoModeToggle = ({ enabled, onChange, disabled }) => {
           disabled={disabled}
         />
         <span className="toggle-slider"></span>
-        <span className="toggle-label">Auto Mode (5-second cycles)</span>
+        <span className="toggle-label">Auto Mode (15-second cycles)</span>
       </label>
     </div>
   );
