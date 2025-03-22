@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import RecordButton from './components/RecordButton';
 import TranslationDisplay from './components/TranslationDisplay';
-import { processAudioChunk } from './api/translateAudio';
+import { translateAudioChunk } from './api/translateAudio';
 import './App.css';
 
 function App() {
@@ -34,6 +34,17 @@ function App() {
     }
   };
   
+  const handleAudioChunk = async (audioChunk) => {
+    try {
+      const translationResult = await translateAudioChunk(audioChunk);
+      if (translationResult) {
+        setTranslation(prev => prev + ' ' + translationResult);
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+    }
+  };
+
   const handleAudioData = async (event) => {
     if (event.data.size > 0) {
       audioChunksRef.current.push(event.data);
@@ -47,17 +58,6 @@ function App() {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       await handleAudioChunk(audioBlob);
       audioChunksRef.current = [];
-    }
-  };
-  
-  const handleAudioChunk = async (audioChunk) => {
-    try {
-      const translationResult = await processAudioChunk(audioChunk);
-      if (translationResult) {
-        setTranslation(prev => prev + ' ' + translationResult);
-      }
-    } catch (error) {
-      console.error('Translation error:', error);
     }
   };
   
