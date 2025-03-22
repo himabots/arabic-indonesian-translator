@@ -1,6 +1,4 @@
-/**
- * Client-side utility for sending audio to the translation API
- */
+import { processAudioChunk } from './audioProcessor';
 
 /**
  * Sends audio data to the translation API
@@ -74,14 +72,21 @@ export function blobToBase64(blob) {
  */
 export async function translateAudioChunk(audioChunk) {
   try {
-    // Convert audio to base64
-    const base64Audio = await blobToBase64(audioChunk);
+    console.log('Processing audio chunk with size:', audioChunk.size);
+    
+    // Process the audio chunk with FFmpeg (ensure proper formatting)
+    const processedBlob = await processAudioChunk(audioChunk);
+    console.log('Audio processed, new size:', processedBlob.size);
+    
+    // Convert processed audio to base64
+    const base64Audio = await blobToBase64(processedBlob);
     
     if (!base64Audio) {
       console.log('Empty base64 audio, skipping translation');
       return '';
     }
     
+    console.log('Sending processed audio for translation');
     // Send to translation API
     return await sendAudioForTranslation(base64Audio);
   } catch (error) {
