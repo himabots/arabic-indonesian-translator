@@ -454,7 +454,9 @@ function App() {
           
           {isRecording && (
             <div className="recording-indicator">
-              Recording... (Translations appear every 5 seconds)
+              <span className="recording-dot"></span>
+              Recording... <br />
+              <span className="recording-help">For best results, stop recording after each segment to see translation</span>
             </div>
           )}
           

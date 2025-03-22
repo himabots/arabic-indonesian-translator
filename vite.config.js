@@ -5,20 +5,14 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+    include: ['hark'],
   },
   build: {
     commonjsOptions: {
-      include: [/node_modules/],
+      include: [/hark/, /node_modules/],
     },
-    // Support WebAssembly
-    target: 'esnext',
-  },
-  // Configure headers for cross-origin isolation (needed for SharedArrayBuffer in WASM)
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+    rollupOptions: {
+      external: [],
     },
   },
 })

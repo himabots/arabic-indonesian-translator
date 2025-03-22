@@ -13,8 +13,8 @@ export default async function handler(req, res) {
     // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
     
-    // Skip processing if audio is too small (now 5KB since we're ensuring proper formatting)
-    if (audioBuffer.length < 5000) {
+    // Skip processing if audio is too small - minimum 10KB to ensure it's long enough
+    if (audioBuffer.length < 10000) {
       console.log('Audio too small, skipping:', audioBuffer.length, 'bytes');
       return res.status(200).json({ translation: '' });
     }
@@ -23,12 +23,11 @@ export default async function handler(req, res) {
       // Create FormData for Whisper API
       const formData = new FormData();
       
-      // Use proper MIME type that Whisper expects - now using MP3 since we're converting with FFmpeg
-      const audioBlob = new Blob([audioBuffer], { type: 'audio/mp3' });
-      formData.append('file', audioBlob, 'speech.mp3');
+      // Use proper MIME type that Whisper expects
+      const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' });
+      formData.append('file', audioBlob, 'speech.webm');
       formData.append('model', 'whisper-large-v3');
       
-      console.log('Sending audio to Whisper API, size:', audioBuffer.length);
       const whisperResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
@@ -44,8 +43,8 @@ export default async function handler(req, res) {
           console.log('Retrying with different MIME type...');
           
           const retryFormData = new FormData();
-          const retryBlob = new Blob([audioBuffer], { type: 'audio/wav' });
-          retryFormData.append('file', retryBlob, 'speech.wav');
+          const retryBlob = new Blob([audioBuffer], { type: 'audio/mp3' });
+          retryFormData.append('file', retryBlob, 'speech.mp3');
           retryFormData.append('model', 'whisper-large-v3');
           
           const retryResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
