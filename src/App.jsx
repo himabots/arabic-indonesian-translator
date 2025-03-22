@@ -18,14 +18,17 @@ function App() {
   const analyserRef = useRef(null);
   const audioDataRef = useRef(new Uint8Array(0));
   const animationFrameRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const allAudioChunksRef = useRef([]); // Store all audio for final processing
+  const audioChunksRef = useRef([]);  // Store all chunks during recording
+  const allAudioChunksRef = useRef([]); // For final complete processing
   const processingRef = useRef(false);
   const translationIntervalRef = useRef(null);
-  const lastTranslationTimeRef = useRef(0);
+  const lastChunkTimestampRef = useRef([]); // Track timestamps for each chunk
+  const lastProcessedIndexRef = useRef(0); // Last processed chunk index
   
   // Auto-translation interval in milliseconds
   const AUTO_TRANSLATION_INTERVAL = 5000; // 5 seconds
+  // Window size for overlapping translations (in seconds)
+  const TRANSLATION_WINDOW_SIZE = 15; // Process last 15 seconds each time
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -106,7 +109,8 @@ function App() {
     setFinalMode(false);
     audioChunksRef.current = [];
     allAudioChunksRef.current = [];
-    lastTranslationTimeRef.current = Date.now();
+    lastChunkTimestampRef.current = [];
+    lastProcessedIndexRef.current = 0;
     
     try {
       // Get audio stream with explicit constraints for better mobile compatibility
@@ -184,8 +188,13 @@ function App() {
       // Handle audio data
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
+          // Store the timestamp with each chunk
+          const timestamp = Date.now();
           audioChunksRef.current.push(event.data);
           allAudioChunksRef.current.push(event.data);
+          lastChunkTimestampRef.current.push(timestamp);
+          
+          console.log(`Audio chunk received: ${event.data.size} bytes, timestamp: ${timestamp}`);
         }
       };
       
@@ -283,41 +292,76 @@ function App() {
     setIsProcessing(true);
     
     try {
-      // Make a copy of the current chunks
-      const chunksToProcess = [...audioChunksRef.current];
+      const now = Date.now();
       
-      // Clear the chunks array to collect new audio while processing
-      audioChunksRef.current = [];
+      // Calculate which chunks fall within our overlapping window (last 15 seconds)
+      const windowStartTime = now - (TRANSLATION_WINDOW_SIZE * 1000);
       
-      // Combine audio chunks into a single blob
-      const audioBlob = new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' });
+      // Find chunks in the sliding window
+      let windowChunks = [];
+      let windowStart = 0;
       
-      console.log('Processing interim audio segment of size:', audioBlob.size, 'bytes');
-      
-      const translationResult = await translateAudioChunk(audioBlob).catch(error => {
-        console.error('Error in translateAudioChunk:', error);
-        return '';
-      });
-      
-      if (translationResult) {
-        console.log('Translation received:', translationResult);
-        
-        // Add new translation to the history with timestamp
-        const timestamp = new Date().toLocaleTimeString();
-        setTranslations(prev => [
-          ...prev, 
-          { 
-            id: Date.now(), 
-            text: translationResult, 
-            timestamp,
-            interim: true 
-          }
-        ]);
-      } else {
-        console.log('No translation result received');
+      // Find the index of the first chunk in our window
+      for (let i = 0; i < lastChunkTimestampRef.current.length; i++) {
+        if (lastChunkTimestampRef.current[i] >= windowStartTime) {
+          windowStart = i;
+          break;
+        }
       }
       
-      lastTranslationTimeRef.current = Date.now();
+      // If we have no chunks in our window, use all available chunks
+      if (windowStart >= lastChunkTimestampRef.current.length) {
+        windowStart = 0;
+      }
+      
+      // Get all chunks from windowStart onwards
+      windowChunks = audioChunksRef.current.slice(windowStart);
+      
+      console.log(`Processing window from index ${windowStart} (${windowChunks.length} chunks)`);
+      
+      // If we don't have new chunks since last processing, skip
+      if (windowStart <= lastProcessedIndexRef.current && windowChunks.length > 0) {
+        console.log('No new chunks since last processing, skipping');
+        processingRef.current = false;
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Update last processed index
+      lastProcessedIndexRef.current = windowStart;
+      
+      // If we have chunks to process
+      if (windowChunks.length > 0) {
+        // Combine audio chunks into a single blob
+        const audioBlob = new Blob(windowChunks, { type: 'audio/webm;codecs=opus' });
+        
+        console.log('Processing audio window of size:', audioBlob.size, 'bytes');
+        
+        const translationResult = await translateAudioChunk(audioBlob).catch(error => {
+          console.error('Error in translateAudioChunk:', error);
+          return '';
+        });
+        
+        if (translationResult) {
+          console.log('Translation received:', translationResult);
+          
+          // Add new translation to the history with timestamp
+          const timestamp = new Date().toLocaleTimeString();
+          setTranslations(prev => [
+            ...prev, 
+            { 
+              id: Date.now(), 
+              text: translationResult, 
+              timestamp,
+              interim: true 
+            }
+          ]);
+        } else {
+          console.log('No translation result received');
+        }
+      } else {
+        console.log('No chunks in current window to process');
+      }
     } catch (error) {
       console.error('Error processing audio segment:', error);
     } finally {
