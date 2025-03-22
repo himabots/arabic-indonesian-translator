@@ -42,3 +42,33 @@ export function blobToBase64(blob) {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result.split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Processes audio chunk and returns translation
+ * @param {Blob} audioChunk - Audio chunk to process
+ * @returns {Promise<string>} Translation result
+ */
+export async function translateAudioChunk(audioChunk) {
+  try {
+    // Only process if audio is substantial enough
+    if (audioChunk.size < 10000) { // Minimum 10KB to avoid "too short" errors
+      console.log('Audio chunk too small, skipping:', audioChunk.size, 'bytes');
+      return '';
+    }
+    
+    // Convert audio to base64
+    const base64Audio = await blobToBase64(audioChunk);
+    // Send to translation API
+    const response = await sendAudioForTranslation(base64Audio);
+    return response.translation || '';
+  } catch (error) {
+    console.error('Error processing audio chunk:', error);
+    return '';
+  }
+}
