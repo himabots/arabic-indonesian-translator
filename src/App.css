@@ -44,10 +44,55 @@ main {
   animation: blink 1s infinite;
 }
 
+.processing-indicator {
+  margin-top: 16px;
+  color: #2563eb;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.processing-indicator::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #2563eb;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+
+.audio-level-indicator {
+  width: 100%;
+  max-width: 500px;
+  margin: 16px 0;
+}
+
+.audio-level-bar {
+  height: 10px;
+  background-color: #e5e7eb;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.audio-level-fill {
+  height: 100%;
+  background-color: #2563eb;
+  border-radius: 5px;
+  transition: width 0.1s ease;
+}
+
 @keyframes blink {
   0% { opacity: 1; }
   50% { opacity: 0.3; }
   100% { opacity: 1; }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 footer {
