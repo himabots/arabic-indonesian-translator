@@ -4,4 +4,15 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: ['hark'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/hark/, /node_modules/],
+    },
+    rollupOptions: {
+      external: [],
+    },
+  },
 })
