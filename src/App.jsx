@@ -109,7 +109,7 @@ function App() {
   const startAudioMonitoring = () => {
     // Variable to track accumulated speech time
     let speechDuration = 0;
-    const MIN_SPEECH_DURATION = 2000; // Minimum 2 seconds of speech before processing
+    const MIN_SPEECH_DURATION = 5000; // Minimum 5 seconds of speech before processing
     
     const updateAudioLevel = () => {
       if (!analyserRef.current) return;
@@ -220,8 +220,8 @@ function App() {
       // Combine all audio chunks into a single blob
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
       
-      // Only process if we have enough data (at least 5KB)
-      if (audioBlob.size > 5000) {
+      // Only process if we have enough data (at least 10KB)
+      if (audioBlob.size > 10000) {
         console.log('Processing audio segment of size:', audioBlob.size, 'bytes');
         const result = await translateAudioChunk(audioBlob);
         
