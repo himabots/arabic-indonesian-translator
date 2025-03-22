@@ -17,15 +17,14 @@ export async function sendAudioForTranslation(base64Audio) {
       body: JSON.stringify({ audio: base64Audio }),
     });
 
-    const data = await response.json();
-    
-    // Never show errors to the user
-    if (!response.ok) {
-      console.error('Translation API error:', data);
+    // Never show errors to the user, just return empty string or translation
+    try {
+      const data = await response.json();
+      return data.translation || '';
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError);
       return '';
     }
-
-    return data.translation || '';
   } catch (error) {
     console.error('Error sending audio for translation:', error);
     return '';
@@ -41,10 +40,18 @@ export function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = reader.result.split(',')[1];
-      resolve(base64String);
+      try {
+        const base64String = reader.result.split(',')[1];
+        resolve(base64String);
+      } catch (error) {
+        console.error('Error extracting base64:', error);
+        resolve(''); // Resolve with empty string instead of rejecting
+      }
     };
-    reader.onerror = reject;
+    reader.onerror = (error) => {
+      console.error('FileReader error:', error);
+      resolve(''); // Resolve with empty string instead of rejecting
+    };
     reader.readAsDataURL(blob);
   });
 }
@@ -58,6 +65,11 @@ export async function translateAudioChunk(audioChunk) {
   try {
     // Convert audio to base64
     const base64Audio = await blobToBase64(audioChunk);
+    
+    if (!base64Audio) {
+      console.log('Empty base64 audio, skipping translation');
+      return '';
+    }
     
     // Send to translation API
     return await sendAudioForTranslation(base64Audio);

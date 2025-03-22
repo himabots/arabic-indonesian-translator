@@ -10,6 +10,7 @@ function App() {
   const [translation, setTranslation] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
   const [lastPauseTime, setLastPauseTime] = useState(0);
+  const [finalMode, setFinalMode] = useState(false);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -22,6 +23,7 @@ function App() {
   const lastAudioLevelRef = useRef(0);
   const speechStartTimeRef = useRef(0);
   const processingRef = useRef(false);
+  const errorCountRef = useRef(0);
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -59,6 +61,8 @@ function App() {
     // Reset states
     setTranslation('');
     setLastPauseTime(0);
+    setFinalMode(false);
+    errorCountRef.current = 0;
     
     // Get audio stream
     const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -173,17 +177,18 @@ function App() {
             const speechDuration = Date.now() - speechStartTimeRef.current;
             
             // Only process if the speech segment was long enough and we're not already processing
-            if (speechDuration >= MIN_SPEECH_DURATION && !processingRef.current) {
+            // Skip real-time processing if we've had too many errors
+            if (speechDuration >= MIN_SPEECH_DURATION && !processingRef.current && errorCountRef.current < 3) {
               console.log(`Speech ended after ${speechDuration}ms with ${pauseDuration}ms pause`);
               
               // Process the audio if we have enough chunks
               if (audioChunksRef.current.length > 0) {
                 processSpeechSegment();
               }
-              
-              isSpeaking = false;
-              pauseStartTime = 0;
             }
+            
+            isSpeaking = false;
+            pauseStartTime = 0;
           }
         }
       }
@@ -231,6 +236,7 @@ function App() {
     
     // Process any remaining audio
     if (audioChunksRef.current.length > 0) {
+      setFinalMode(true);
       processSpeechSegment(true); // true indicates final processing
     }
     
@@ -249,14 +255,18 @@ function App() {
     try {
       // Make a copy of the current chunks and then clear the array for new data
       const chunksToProcess = [...audioChunksRef.current];
-      audioChunksRef.current = [];
+      
+      // Only clear chunks if this is an interim (not final) processing
+      if (!isFinal) {
+        audioChunksRef.current = [];
+      }
       
       // Combine all audio chunks into a single blob with proper MIME type
       const audioBlob = new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' });
       
       // Only process if we have enough data (at least 15KB for a good quality segment)
       if (audioBlob.size > 15000 || isFinal) {
-        console.log('Processing audio segment of size:', audioBlob.size, 'bytes');
+        console.log('Processing audio segment of size:', audioBlob.size, 'bytes', isFinal ? '(final)' : '');
         
         // Pause between processing segments to avoid overwhelming the API
         const now = Date.now();
@@ -266,21 +276,36 @@ function App() {
           await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastPause));
         }
         
+        // For final processing, clear translation first to show only the complete result
+        if (isFinal) {
+          setTranslation('');
+        }
+        
         const result = await translateAudioChunk(audioBlob);
         setLastPauseTime(Date.now());
         
         if (result) {
+          // If we got a result, reset error count
+          errorCountRef.current = 0;
+          
           // Append to existing translation with a space
           setTranslation(prev => {
             const separator = prev ? ' ' : '';
             return prev + separator + result;
           });
+        } else if (!isFinal) {
+          // Increment error count for non-final processing
+          errorCountRef.current++;
+          console.log(`Translation error count: ${errorCountRef.current}`);
         }
       } else {
         console.log('Audio segment too small, skipping:', audioBlob.size, 'bytes');
       }
     } catch (error) {
       console.error('Error processing audio segment:', error);
+      if (!isFinal) {
+        errorCountRef.current++;
+      }
     } finally {
       processingRef.current = false;
       setIsProcessing(false);
@@ -316,13 +341,17 @@ function App() {
         
         {isRecording && (
           <div className="recording-indicator">
-            Recording... (translation will appear after speech pauses)
+            {errorCountRef.current >= 3 ? 
+              "Recording... (Complete translation will appear when you stop)" :
+              "Recording... (Translation will appear after speech pauses)"}
           </div>
         )}
         
         {isProcessing && (
           <div className="processing-indicator">
-            Processing translation...
+            {finalMode ? 
+              "Processing final translation..." : 
+              "Processing translation..."}
           </div>
         )}
       </main>
