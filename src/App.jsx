@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import RecordButton from './components/RecordButton';
-import TranslationDisplay from './components/TranslationDisplay';
 import TranslateNowButton from './components/TranslateNowButton';
+import TranslationDisplay from './components/TranslationDisplay';
+import AutoModeToggle from './components/AutoModeToggle';
 import { translateAudioChunk } from './api/translateAudio';
 import './App.css';
 
@@ -11,6 +12,7 @@ function App() {
   const [translations, setTranslations] = useState([]); // Array of translation entries
   const [audioLevel, setAudioLevel] = useState(0);
   const [finalMode, setFinalMode] = useState(false);
+  const [autoMode, setAutoMode] = useState(false); // Auto mode toggle state
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -22,13 +24,13 @@ function App() {
   const allAudioChunksRef = useRef([]); // For final complete processing
   const processingRef = useRef(false);
   const translationIntervalRef = useRef(null);
+  const autoModeIntervalRef = useRef(null);
   const lastChunkTimestampRef = useRef([]); // Track timestamps for each chunk
   const lastProcessedIndexRef = useRef(0); // Last processed chunk index
   
   // Auto-translation interval in milliseconds
   const AUTO_TRANSLATION_INTERVAL = 5000; // 5 seconds
-  // Window size for overlapping translations (in seconds)
-  const TRANSLATION_WINDOW_SIZE = 15; // Process last 15 seconds each time
+  const AUTO_MODE_CYCLE_INTERVAL = 5000; // 5 seconds for auto mode cycle
   
   // Clean up resources when component unmounts
   useEffect(() => {
@@ -45,8 +47,164 @@ function App() {
       if (translationIntervalRef.current) {
         clearInterval(translationIntervalRef.current);
       }
+      if (autoModeIntervalRef.current) {
+        clearInterval(autoModeIntervalRef.current);
+      }
     };
   }, []);
+
+  // Effect to handle Auto Mode changes
+  useEffect(() => {
+    // Clear any existing auto mode interval
+    if (autoModeIntervalRef.current) {
+      clearInterval(autoModeIntervalRef.current);
+      autoModeIntervalRef.current = null;
+    }
+    
+    // If auto mode is enabled and we're recording, set up the cycle
+    if (autoMode && isRecording) {
+      startAutoModeCycle();
+    }
+  }, [autoMode, isRecording]);
+  
+  const startAutoModeCycle = () => {
+    // Initial cycle starts after the interval
+    autoModeIntervalRef.current = setTimeout(async () => {
+      if (isRecording && autoMode) {
+        // Only proceed if we're still recording and in auto mode
+        await cycleRecording();
+        
+        // Set up recurring interval
+        autoModeIntervalRef.current = setInterval(async () => {
+          if (isRecording && autoMode) {
+            await cycleRecording();
+          } else {
+            // Clear interval if not recording or auto mode disabled
+            clearInterval(autoModeIntervalRef.current);
+            autoModeIntervalRef.current = null;
+          }
+        }, AUTO_MODE_CYCLE_INTERVAL);
+      }
+    }, AUTO_MODE_CYCLE_INTERVAL);
+  };
+  
+  const cycleRecording = async () => {
+    console.log('Auto mode cycle: stopping recording');
+    
+    // Process the current recording
+    await processCycleRecording();
+    
+    // Wait a short moment before restarting
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Restart recording if still in auto mode
+    if (autoMode) {
+      console.log('Auto mode cycle: restarting recording');
+      await restartRecording();
+    }
+  };
+  
+  const processCycleRecording = async () => {
+    // Stop the media recorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    // Process the audio recorded so far
+    if (allAudioChunksRef.current.length > 0) {
+      setIsProcessing(true);
+      
+      try {
+        // Combine all audio chunks into a single blob
+        const audioBlob = new Blob(allAudioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        
+        console.log('Processing auto cycle recording of size:', audioBlob.size, 'bytes');
+        
+        const result = await translateAudioChunk(audioBlob).catch(error => {
+          console.error('Error in cycle translateAudioChunk:', error);
+          return '';
+        });
+        
+        if (result) {
+          console.log('Cycle translation received:', result);
+          
+          // Add translation with timestamp
+          const timestamp = new Date().toLocaleTimeString();
+          setTranslations(prev => [
+            ...prev, 
+            { 
+              id: Date.now(), 
+              text: result, 
+              timestamp,
+              final: true,
+              isSessionEnd: false // Not a full stop, just a cycle
+            }
+          ]);
+        } else {
+          console.log('No cycle translation result received');
+        }
+      } catch (error) {
+        console.error('Error processing cycle recording:', error);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+  
+  const restartRecording = async () => {
+    // Reset recording session variables but keep the stream
+    audioChunksRef.current = [];
+    allAudioChunksRef.current = [];
+    lastChunkTimestampRef.current = [];
+    lastProcessedIndexRef.current = 0;
+    
+    // Create new media recorder with the existing stream
+    if (streamRef.current) {
+      try {
+        // Check for supported MIME types (important for mobile)
+        let options;
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options = { 
+            mimeType: 'audio/webm;codecs=opus',
+            audioBitsPerSecond: 128000 
+          };
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options = { 
+            mimeType: 'audio/webm',
+            audioBitsPerSecond: 128000 
+          };
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          options = { 
+            mimeType: 'audio/mp4',
+            audioBitsPerSecond: 128000 
+          };
+        } else {
+          // Use default options
+          options = {};
+        }
+        
+        // Create media recorder with selected options
+        const mediaRecorder = new MediaRecorder(streamRef.current, options);
+        mediaRecorderRef.current = mediaRecorder;
+        
+        // Handle audio data
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            // Store the timestamp with each chunk
+            const timestamp = Date.now();
+            audioChunksRef.current.push(event.data);
+            allAudioChunksRef.current.push(event.data);
+            lastChunkTimestampRef.current.push(timestamp);
+          }
+        };
+        
+        // Start media recorder
+        mediaRecorder.start(500);
+      } catch (error) {
+        console.error('Error restarting media recorder:', error);
+      }
+    }
+  };
 
   const requestMicrophonePermission = async () => {
     try {
@@ -202,13 +360,10 @@ function App() {
       console.log('MediaRecorder started');
       setIsRecording(true);
       
-      // Set up auto-translation interval
-      translationIntervalRef.current = setInterval(() => {
-        if (audioChunksRef.current.length > 0 && !processingRef.current) {
-          console.log('Auto-translation triggered after 5 seconds');
-          processCurrentAudio();
-        }
-      }, AUTO_TRANSLATION_INTERVAL);
+      // Set up auto mode cycle if enabled
+      if (autoMode) {
+        startAutoModeCycle();
+      }
       
     } catch (error) {
       console.error('Error in startRecording:', error);
@@ -244,6 +399,12 @@ function App() {
   };
   
   const stopRecording = () => {
+    // Stop auto mode interval
+    if (autoModeIntervalRef.current) {
+      clearInterval(autoModeIntervalRef.current);
+      autoModeIntervalRef.current = null;
+    }
+    
     // Stop auto-translation interval
     if (translationIntervalRef.current) {
       clearInterval(translationIntervalRef.current);
@@ -270,6 +431,7 @@ function App() {
     // Stop all tracks in the stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     
     // Process the complete recording using allAudioChunksRef
@@ -291,75 +453,32 @@ function App() {
     setIsProcessing(true);
     
     try {
-      const now = Date.now();
+      // Combine audio chunks into a single blob
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
       
-      // Calculate which chunks fall within our overlapping window (last 15 seconds)
-      const windowStartTime = now - (TRANSLATION_WINDOW_SIZE * 1000);
+      console.log('Processing current audio of size:', audioBlob.size, 'bytes');
       
-      // Find chunks in the sliding window
-      let windowChunks = [];
-      let windowStart = 0;
+      const translationResult = await translateAudioChunk(audioBlob).catch(error => {
+        console.error('Error in translateAudioChunk:', error);
+        return '';
+      });
       
-      // Find the index of the first chunk in our window
-      for (let i = 0; i < lastChunkTimestampRef.current.length; i++) {
-        if (lastChunkTimestampRef.current[i] >= windowStartTime) {
-          windowStart = i;
-          break;
-        }
-      }
-      
-      // If we have no chunks in our window, use all available chunks
-      if (windowStart >= lastChunkTimestampRef.current.length) {
-        windowStart = 0;
-      }
-      
-      // Get all chunks from windowStart onwards
-      windowChunks = audioChunksRef.current.slice(windowStart);
-      
-      console.log(`Processing window from index ${windowStart} (${windowChunks.length} chunks)`);
-      
-      // If we don't have new chunks since last processing, skip
-      if (windowStart <= lastProcessedIndexRef.current && windowChunks.length > 0) {
-        console.log('No new chunks since last processing, skipping');
-        processingRef.current = false;
-        setIsProcessing(false);
-        return;
-      }
-      
-      // Update last processed index
-      lastProcessedIndexRef.current = windowStart;
-      
-      // If we have chunks to process
-      if (windowChunks.length > 0) {
-        // Combine audio chunks into a single blob
-        const audioBlob = new Blob(windowChunks, { type: 'audio/webm;codecs=opus' });
+      if (translationResult) {
+        console.log('Translation received:', translationResult);
         
-        console.log('Processing audio window of size:', audioBlob.size, 'bytes');
-        
-        const translationResult = await translateAudioChunk(audioBlob).catch(error => {
-          console.error('Error in translateAudioChunk:', error);
-          return '';
-        });
-        
-        if (translationResult) {
-          console.log('Translation received:', translationResult);
-          
-          // Add new translation to the history with timestamp
-          const timestamp = new Date().toLocaleTimeString();
-          setTranslations(prev => [
-            ...prev, 
-            { 
-              id: Date.now(), 
-              text: translationResult, 
-              timestamp,
-              interim: true 
-            }
-          ]);
-        } else {
-          console.log('No translation result received');
-        }
+        // Add new translation to the history with timestamp
+        const timestamp = new Date().toLocaleTimeString();
+        setTranslations(prev => [
+          ...prev, 
+          { 
+            id: Date.now(), 
+            text: translationResult, 
+            timestamp,
+            interim: true 
+          }
+        ]);
       } else {
-        console.log('No chunks in current window to process');
+        console.log('No translation result received');
       }
     } catch (error) {
       console.error('Error processing audio segment:', error);
@@ -420,6 +539,11 @@ function App() {
     }
   };
   
+  // Handle auto mode toggle
+  const handleAutoModeToggle = () => {
+    setAutoMode(!autoMode);
+  };
+  
   return (
     <div className="app-container">
       <header>
@@ -461,7 +585,7 @@ function App() {
               onClick={toggleRecording} 
             />
             
-            {isRecording && (
+            {isRecording && !autoMode && (
               <TranslateNowButton 
                 onClick={handleTranslateNowClick}
                 disabled={isProcessing || audioChunksRef.current.length === 0}
@@ -469,11 +593,21 @@ function App() {
             )}
           </div>
           
+          <AutoModeToggle 
+            enabled={autoMode}
+            onChange={handleAutoModeToggle}
+            disabled={isProcessing}
+          />
+          
           {isRecording && (
             <div className="recording-indicator">
               <span className="recording-dot"></span>
               Recording... <br />
-              <span className="recording-help">For best results, stop recording after each segment to see translation</span>
+              <span className="recording-help">
+                {autoMode 
+                  ? "Auto mode: Translating every 5 seconds" 
+                  : "For best results, stop recording after each segment to see translation"}
+              </span>
             </div>
           )}
           
