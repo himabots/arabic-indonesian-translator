@@ -1,42 +1,38 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import './TranslationDisplay.css';
 
 const TranslationDisplay = ({ translations }) => {
-  // Automatically scroll to bottom when new translations are added
-  const containerRef = React.useRef(null);
+  // Reference to the messages container for auto-scrolling
+  const messagesContainerRef = useRef(null);
   
-  React.useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+  // Auto-scroll to bottom when new translations are added
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [translations]);
   
   return (
-    <div className="translation-container" ref={containerRef}>
-      <div className="translation-content">
-        {translations.length === 0 ? (
-          <p className="no-translations">Translations will appear here...</p>
-        ) : (
-          translations.map((entry, index) => (
-            <React.Fragment key={entry.id}>
-              {/* Add a separator if this is marked as a session end and not the last item */}
-              {index > 0 && translations[index-1].isSessionEnd && (
-                <div className="session-separator">
-                  <hr />
-                </div>
-              )}
-              <div 
-                className={`translation-entry ${entry.final ? 'final' : 'interim'}`}
-              >
-                <div className="translation-time">{entry.timestamp}</div>
-                <div className="translation-text">{entry.text}</div>
-              </div>
-            </React.Fragment>
-          ))
-        )}
-      </div>
+    <div className="messages-container" ref={messagesContainerRef}>
+      {translations.length === 0 ? (
+        <div className="empty-messages">
+          <p>Translations will appear here</p>
+        </div>
+      ) : (
+        <div className="messages-list">
+          {translations.map((message) => (
+            <div 
+              key={message.id} 
+              className={`message-bubble ${message.final ? 'final' : 'interim'}`}
+            >
+              <div className="message-timestamp">{message.timestamp}</div>
+              <div className="message-text">{message.text}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-}
+};
 
 export default TranslationDisplay;

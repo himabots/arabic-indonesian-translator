@@ -1,43 +1,91 @@
 .app-container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
   font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-header h1 {
-  font-size: 28px;
-  margin-bottom: 8px;
-}
-
-header p {
-  color: #6b7280;
-}
-
-main {
+/* Initial clean interface */
+.initial-screen {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
+  justify-content: center;
+  height: 100vh;
+  padding: 24px;
+}
+
+.initial-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.initial-header h1 {
+  font-size: 42px;
+  margin-bottom: 8px;
+  color: #2563eb;
+}
+
+.initial-header p {
+  font-size: 18px;
+  color: #6b7280;
+}
+
+.start-understanding-button {
+  background-color: #2563eb;
+  color: white;
+  font-size: 18px;
+  font-weight: 500;
+  padding: 16px 32px;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+}
+
+.start-understanding-button:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* Recording interface */
+.app-header {
+  text-align: center;
+  padding: 16px 24px;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.app-header h1 {
+  font-size: 28px;
+  margin-bottom: 4px;
+  color: #2563eb;
+}
+
+.app-header p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
 }
 
 .translations-header {
-  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  padding: 12px 16px;
+  background-color: #f9fafb;
 }
 
 .translations-header h2 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   margin: 0;
+  color: #4b5563;
 }
 
 .clear-button {
@@ -56,83 +104,76 @@ main {
 
 .controls-container {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.buttons-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+  margin-top: auto;
 }
 
 .audio-level-indicator {
   width: 100%;
-  max-width: 500px;
-  margin-bottom: 16px;
+  padding: 0 16px;
+  margin-bottom: 8px;
 }
 
 .audio-level-bar {
-  height: 10px;
+  height: 4px;
   background-color: #e5e7eb;
-  border-radius: 5px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
 .audio-level-fill {
   height: 100%;
   background-color: #2563eb;
-  border-radius: 5px;
+  border-radius: 2px;
   transition: width 0.1s ease;
 }
 
-.recording-indicator {
-  margin-top: 16px;
+.bottom-controls {
+  padding: 16px;
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.buttons-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.listening-indicator {
+  margin-top: 12px;
   color: #dc2626;
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-direction: column;
-  text-align: center;
+  font-size: 14px;
 }
 
-.recording-dot {
-  content: "";
+.listening-dot {
   display: block;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background-color: #dc2626;
   animation: blink 1s infinite;
 }
 
-.recording-help {
-  font-size: 14px;
-  font-style: italic;
-  color: #666;
-  margin-top: 4px;
-  display: block;
-}
-
 .processing-indicator {
-  margin-top: 16px;
+  margin-top: 12px;
   color: #2563eb;
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 14px;
 }
 
 .processing-indicator::before {
   content: "";
   display: block;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   border: 2px solid #2563eb;
   border-top-color: transparent;
@@ -151,8 +192,9 @@ main {
 }
 
 footer {
-  margin-top: 48px;
+  padding: 16px;
   text-align: center;
-  color: #6b7280;
-  font-size: 14px;
+  color: #9ca3af;
+  font-size: 12px;
+  margin-top: 8px;
 }

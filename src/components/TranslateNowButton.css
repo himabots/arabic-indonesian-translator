@@ -2,22 +2,37 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 10px 16px;
-  font-size: 16px;
-  border-radius: 20px;
+  font-size: 14px;
+  border-radius: 24px;
   border: none;
-  background-color: #2563eb;
+  background-color: #4b5563;
   color: white;
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-left: 10px;
+  font-weight: 500;
 }
 
 .translate-now-button:hover {
-  background-color: #1d4ed8;
+  background-color: #374151;
 }
 
 .translate-now-button.disabled {
-  background-color: #94a3b8;
+  background-color: #9ca3af;
   cursor: not-allowed;
+}
+
+.translate-now-button svg {
+  font-size: 16px;
+  transition: transform 0.3s ease;
+}
+
+.spin-hover:hover {
+  animation: spin 1s linear;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

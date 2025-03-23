@@ -1,4 +1,5 @@
 import React from 'react';
+import { FaSync } from 'react-icons/fa';
 import './TranslateNowButton.css';
 
 const TranslateNowButton = ({ onClick, disabled }) => {
@@ -7,8 +8,9 @@ const TranslateNowButton = ({ onClick, disabled }) => {
       className={`translate-now-button ${disabled ? 'disabled' : ''}`}
       onClick={onClick}
       disabled={disabled}
+      aria-label="Translate Now"
     >
-      Translate Now
+      <FaSync className={disabled ? '' : 'spin-hover'} /> Translate Now
     </button>
   );
 };

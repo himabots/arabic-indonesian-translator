@@ -29,7 +29,6 @@ function App() {
   const lastProcessedIndexRef = useRef(0); // Last processed chunk index
   
   // Auto-translation interval in milliseconds
-  const AUTO_TRANSLATION_INTERVAL = 15000; // 15 seconds
   const AUTO_MODE_CYCLE_INTERVAL = 15000; // 15 seconds for auto mode cycle
   
   // Clean up resources when component unmounts
@@ -98,7 +97,7 @@ function App() {
     await new Promise(resolve => setTimeout(resolve, 300));
     
     // Restart recording if still in auto mode
-    if (autoMode) {
+    if (autoMode && isRecording) {
       console.log('Auto mode cycle: restarting recording');
       await restartRecording();
     }
@@ -445,46 +444,11 @@ function App() {
     setIsRecording(false);
   };
   
-  const processCurrentAudio = async () => {
-    // Don't process if already processing or no audio
-    if (processingRef.current || audioChunksRef.current.length === 0) return;
-    
-    processingRef.current = true;
-    setIsProcessing(true);
-    
-    try {
-      // Combine audio chunks into a single blob
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-      
-      console.log('Processing current audio of size:', audioBlob.size, 'bytes');
-      
-      const translationResult = await translateAudioChunk(audioBlob).catch(error => {
-        console.error('Error in translateAudioChunk:', error);
-        return '';
-      });
-      
-      if (translationResult) {
-        console.log('Translation received:', translationResult);
-        
-        // Add new translation to the history with timestamp
-        const timestamp = new Date().toLocaleTimeString();
-        setTranslations(prev => [
-          ...prev, 
-          { 
-            id: Date.now(), 
-            text: translationResult, 
-            timestamp,
-            interim: true 
-          }
-        ]);
-      } else {
-        console.log('No translation result received');
-      }
-    } catch (error) {
-      console.error('Error processing audio segment:', error);
-    } finally {
-      processingRef.current = false;
-      setIsProcessing(false);
+  // Handle "Translate Now" button - stops current recording, translates, then restarts
+  const handleTranslateNowClick = async () => {
+    if (isRecording && !processingRef.current && audioChunksRef.current.length > 0) {
+      console.log('Translate Now clicked: cycling recording');
+      await cycleRecording();
     }
   };
   
@@ -532,13 +496,6 @@ function App() {
     setTranslations([]);
   };
   
-  // Handle manual translation button click
-  const handleTranslateNowClick = () => {
-    if (isRecording && !processingRef.current && audioChunksRef.current.length > 0) {
-      processCurrentAudio();
-    }
-  };
-  
   // Handle auto mode toggle
   const handleAutoModeToggle = () => {
     setAutoMode(!autoMode);
@@ -546,84 +503,100 @@ function App() {
   
   return (
     <div className="app-container">
-      <header>
-        <h1>Arabic to Indonesian Translator</h1>
-        <p>Start recording to translate Arabic speech to Bahasa Indonesia</p>
-      </header>
-      
-      <main>
-        <div className="translations-header">
-          <h2>Translations</h2>
-          {translations.length > 0 && (
-            <button 
-              className="clear-button" 
-              onClick={handleClearTranslations}
-              aria-label="Clear all translations"
-            >
-              Clear All
-            </button>
-          )}
+      {!isRecording ? (
+        // Initial clean interface when not recording
+        <div className="initial-screen">
+          <header className="initial-header">
+            <h1>Fahim</h1>
+            <p>Seek to Understand</p>
+          </header>
+          
+          <button 
+            className="start-understanding-button"
+            onClick={toggleRecording}
+          >
+            Start Understanding
+          </button>
         </div>
-        <TranslationDisplay translations={translations} />
-        
-        <div className="controls-container">
-          {isRecording && (
-            <div className="audio-level-indicator">
-              <div className="audio-level-bar">
-                <div 
-                  className="audio-level-fill"
-                  style={{ width: `${audioLevel}%` }}
-                ></div>
-              </div>
+      ) : (
+        // Recording interface
+        <>
+          <header className="app-header">
+            <h1>Fahim</h1>
+            <p>Seek to Understand</p>
+          </header>
+          
+          {translations.length > 0 && (
+            <div className="translations-header">
+              <h2>Translations</h2>
+              <button 
+                className="clear-button" 
+                onClick={handleClearTranslations}
+                aria-label="Clear all translations"
+              >
+                Clear All
+              </button>
             </div>
           )}
           
-          <div className="buttons-row">
-            <RecordButton 
-              isRecording={isRecording} 
-              isProcessing={isProcessing}
-              onClick={toggleRecording} 
-            />
-            
-            {isRecording && !autoMode && (
-              <TranslateNowButton 
-                onClick={handleTranslateNowClick}
-                disabled={isProcessing || audioChunksRef.current.length === 0}
-              />
+          <TranslationDisplay translations={translations} />
+          
+          <div className="controls-container">
+            {isRecording && (
+              <div className="audio-level-indicator">
+                <div className="audio-level-bar">
+                  <div 
+                    className="audio-level-fill"
+                    style={{ width: `${audioLevel}%` }}
+                  ></div>
+                </div>
+              </div>
             )}
+            
+            <div className="bottom-controls">
+              <div className="buttons-row">
+                <RecordButton 
+                  isRecording={isRecording}
+                  isProcessing={isProcessing}
+                  onClick={toggleRecording}
+                  label="Stop Understanding"
+                />
+                
+                {isRecording && !autoMode && (
+                  <TranslateNowButton 
+                    onClick={handleTranslateNowClick}
+                    disabled={isProcessing || audioChunksRef.current.length === 0}
+                  />
+                )}
+              </div>
+              
+              <AutoModeToggle 
+                enabled={autoMode}
+                onChange={handleAutoModeToggle}
+                disabled={isProcessing}
+                label="Auto Translation (Every 15-second)"
+              />
+              
+              {isRecording && (
+                <div className="listening-indicator">
+                  <span className="listening-dot"></span>
+                  Listening...
+                </div>
+              )}
+              
+              {isProcessing && (
+                <div className="processing-indicator">
+                  Processing translation...
+                </div>
+              )}
+            </div>
           </div>
           
-          <AutoModeToggle 
-            enabled={autoMode}
-            onChange={handleAutoModeToggle}
-            disabled={isProcessing}
-          />
-          
-          {isRecording && (
-            <div className="recording-indicator">
-              <span className="recording-dot"></span>
-              Recording... <br />
-              <span className="recording-help">
-                {autoMode 
-                  ? "Auto mode: Translating every 5 seconds" 
-                  : "For best results, stop recording after each segment to see translation"}
-              </span>
-            </div>
-          )}
-          
-          {isProcessing && (
-            <div className="processing-indicator">
-              {finalMode ? 
-                "Processing final translation..." : 
-                "Processing translation..."}
-            </div>
-          )}
-        </div>
-      </main>
-      
-      <footer>
-        <p>© Zafar Labs {new Date().getFullYear()}</p>
-      </footer>
+          <footer>
+            <p>© Zafar Labs {new Date().getFullYear()}</p>
+          </footer>
+        </>
+      )}
     </div>
   );
 }
