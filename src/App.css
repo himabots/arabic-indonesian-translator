@@ -35,8 +35,18 @@ body {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  width: 100%;
   background-color: #121212;
   position: relative;
+}
+
+.initial-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
 }
 
 .initial-header {
@@ -65,7 +75,7 @@ body {
   border-radius: 50px;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .start-understanding-button:hover {
@@ -75,10 +85,6 @@ body {
 }
 
 .initial-footer {
-  position: absolute;
-  bottom: 20px;
-  left: 0;
-  right: 0;
   text-align: center;
   padding: 16px;
   color: #9ca3af;

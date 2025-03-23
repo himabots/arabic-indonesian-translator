@@ -13,6 +13,7 @@ function App() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [autoMode, setAutoMode] = useState(false);
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
+  const [showInitialScreen, setShowInitialScreen] = useState(true);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -182,7 +183,15 @@ function App() {
           return;
         }
         
-        await startRecording();
+        // If we have translations but we're starting a new recording session
+        if (translations.length > 0) {
+          // We're already in the translation view, just start recording
+          await startRecording();
+        } else {
+          // First time starting, switch from initial to translation view
+          setShowInitialScreen(false);
+          await startRecording();
+        }
       } catch (error) {
         console.error('Error in toggleRecording:', error);
         alert('Error starting recording. Please check microphone access.');
@@ -349,6 +358,8 @@ function App() {
   
   const handleClearTranslations = () => {
     setTranslations([]);
+    // If we clear all translations, go back to initial screen
+    setShowInitialScreen(true);
   };
   
   const handleAutoModeToggle = () => {
@@ -357,22 +368,24 @@ function App() {
   
   return (
     <div className="app-container">
-      {!isRecording ? (
+      {showInitialScreen && translations.length === 0 ? (
         <div className="initial-screen">
-          <div className="initial-header">
-            <h1>Fahim</h1>
-            <p>Seek to Understand</p>
-          </div>
-          
-          <button 
-            className="start-understanding-button"
-            onClick={toggleRecording}
-          >
-            Start Understanding
-          </button>
-          
-          <div className="initial-footer">
-            <p>© Zafar Labs {new Date().getFullYear()}</p>
+          <div className="initial-content">
+            <div className="initial-header">
+              <h1>Fahim</h1>
+              <p>Seek to Understand</p>
+            </div>
+            
+            <button 
+              className="start-understanding-button"
+              onClick={toggleRecording}
+            >
+              Start Understanding
+            </button>
+            
+            <div className="initial-footer">
+              <p>© Zafar Labs {new Date().getFullYear()}</p>
+            </div>
           </div>
         </div>
       ) : (
@@ -406,13 +419,13 @@ function App() {
                   isRecording={isRecording}
                   isProcessing={isProcessing}
                   onClick={toggleRecording}
-                  label="Stop Understanding"
+                  label={isRecording ? "Stop Understanding" : "Start Understanding"}
                 />
                 
                 {!autoMode && (
                   <TranslateNowButton 
                     onClick={handleTranslateNowClick}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !isRecording}
                   />
                 )}
               </div>
@@ -421,7 +434,7 @@ function App() {
                 <AutoModeToggle 
                   enabled={autoMode}
                   onChange={handleAutoModeToggle}
-                  disabled={isProcessing}
+                  disabled={isProcessing || !isRecording}
                   label="Auto Translation (Every 15-second)"
                 />
                 

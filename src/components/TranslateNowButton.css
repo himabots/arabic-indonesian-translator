@@ -4,7 +4,7 @@
   justify-content: center;
   gap: 8px;
   padding: 10px 20px;
-  background-color: #4b5563;
+  background-color: #22c55e; /* Changed from #4b5563 (gray) to green */
   color: white;
   border-radius: 24px;
   border: none;
@@ -14,6 +14,15 @@
   transition: all 0.2s ease;
   width: 48%;
   height: 45px;
+}
+
+.translate-now-button:hover:not(:disabled) {
+  background-color: #16a34a; /* Darker green on hover */
+}
+
+.translate-now-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .translate-icon {
@@ -59,13 +68,4 @@
   .translate-label {
     font-size: 12px;
   }
-}
-
-.translate-now-button:hover:not(:disabled) {
-  background-color: #374151;
-}
-
-.translate-now-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
