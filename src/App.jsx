@@ -226,6 +226,8 @@ function App() {
     if (isRecording) {
       // Stop recording
       stopRecording();
+      // Keep the current state, do not reset to initial screen
+      setIsRecording(false);
     } else {
       try {
         // First, check/request microphone permission
@@ -401,7 +403,7 @@ function App() {
     // Stop auto mode interval
     if (autoModeIntervalRef.current) {
       clearInterval(autoModeIntervalRef.current);
-      autoModeIntervalRef.current = null;
+autoModeIntervalRef.current = null;
     }
     
     // Stop auto-translation interval
@@ -441,7 +443,6 @@ function App() {
     
     // Reset audio level
     setAudioLevel(0);
-    setIsRecording(false);
   };
   
   // Handle "Translate Now" button - stops current recording, translates, then restarts
@@ -503,8 +504,8 @@ function App() {
   
   return (
     <div className="app-container">
-      {!isRecording ? (
-        // Initial clean interface when not recording
+      {!isRecording && translations.length === 0 ? (
+        // Initial clean interface when not recording and no translations
         <div className="initial-screen">
           <header className="initial-header">
             <h1>Fahim</h1>
@@ -519,7 +520,7 @@ function App() {
           </button>
         </div>
       ) : (
-        // Recording interface
+        // Recording or translation interface
         <>
           <header className="app-header">
             <h1>Fahim</h1>
@@ -559,7 +560,7 @@ function App() {
                   isRecording={isRecording}
                   isProcessing={isProcessing}
                   onClick={toggleRecording}
-                  label="Stop Understanding"
+                  label={isRecording ? "Stop Understanding" : "Start Understanding"}
                 />
                 
                 {isRecording && !autoMode && (
