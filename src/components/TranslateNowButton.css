@@ -3,36 +3,69 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  border-radius: 24px;
-  border: none;
+  padding: 10px 20px;
   background-color: #4b5563;
   color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  border-radius: 24px;
+  border: none;
+  font-size: 16px;
   font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 48%;
+  height: 45px;
 }
 
-.translate-now-button:hover {
+.translate-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  position: relative;
+}
+
+.translate-icon:before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background-color: white;
+  transform: rotate(45deg);
+}
+
+.translate-icon:after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background-color: white;
+  transform: rotate(-45deg);
+}
+
+.translate-label {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .translate-now-button {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  
+  .translate-label {
+    font-size: 12px;
+  }
+}
+
+.translate-now-button:hover:not(:disabled) {
   background-color: #374151;
 }
 
-.translate-now-button.disabled {
-  background-color: #9ca3af;
+.translate-now-button:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
-}
-
-.translate-now-button svg {
-  font-size: 16px;
-  transition: transform 0.3s ease;
-}
-
-.spin-hover:hover {
-  animation: spin 1s linear;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }

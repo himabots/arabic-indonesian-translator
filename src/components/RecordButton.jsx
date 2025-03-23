@@ -1,24 +1,24 @@
 import React from 'react';
-import { FaMicrophone, FaStop } from 'react-icons/fa';
 import './RecordButton.css';
 
 const RecordButton = ({ isRecording, isProcessing, onClick, label }) => {
+  const buttonClass = isRecording 
+    ? 'record-button stop' 
+    : 'record-button start';
+  
   return (
     <button 
-      className={`record-button ${isRecording ? 'stop-recording' : 'start-recording'} ${isProcessing ? 'processing' : ''}`}
+      className={buttonClass}
       onClick={onClick}
       disabled={isProcessing}
-      aria-label={isRecording ? 'Stop recording' : 'Start recording'}
     >
-      {isRecording ? (
-        <>
-          <FaStop /> {label || 'Stop Recording'}
-        </>
-      ) : (
-        <>
-          <FaMicrophone /> {label || 'Start Recording'}
-        </>
-      )}
+      <span className="record-icon">
+        {isRecording ? 
+          <span className="stop-icon"></span> : 
+          <span className="mic-icon"></span>
+        }
+      </span>
+      <span className="record-label">{label}</span>
     </button>
   );
 };

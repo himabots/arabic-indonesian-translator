@@ -1,16 +1,16 @@
 import React from 'react';
-import { FaSync } from 'react-icons/fa';
 import './TranslateNowButton.css';
 
 const TranslateNowButton = ({ onClick, disabled }) => {
   return (
     <button 
-      className={`translate-now-button ${disabled ? 'disabled' : ''}`}
+      className="translate-now-button"
       onClick={onClick}
       disabled={disabled}
       aria-label="Translate Now"
     >
-      <FaSync className={disabled ? '' : 'spin-hover'} /> Translate Now
+      <span className="translate-icon"></span>
+      <span className="translate-label">Translate Now</span>
     </button>
   );
 };

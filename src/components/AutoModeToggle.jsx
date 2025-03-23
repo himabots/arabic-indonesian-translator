@@ -3,17 +3,17 @@ import './AutoModeToggle.css';
 
 const AutoModeToggle = ({ enabled, onChange, disabled, label }) => {
   return (
-    <div className="auto-mode-container">
-      <label className="auto-mode-toggle">
+    <div className="auto-mode-toggle-container">
+      <label className="toggle-switch">
         <input 
-          type="checkbox"
-          checked={enabled}
-          onChange={onChange}
+          type="checkbox" 
+          checked={enabled} 
+          onChange={onChange} 
           disabled={disabled}
         />
         <span className="toggle-slider"></span>
-        <span className="toggle-label">{label || "Auto Translation (Every 15-second)"}</span>
       </label>
+      <span className="toggle-label">{label}</span>
     </div>
   );
 };

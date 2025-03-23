@@ -2,35 +2,27 @@ import React, { useRef, useEffect } from 'react';
 import './TranslationDisplay.css';
 
 const TranslationDisplay = ({ translations }) => {
-  // Reference to the messages container for auto-scrolling
-  const messagesContainerRef = useRef(null);
+  const messagesEndRef = useRef(null);
   
-  // Auto-scroll to bottom when new translations are added
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
   useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-    }
+    scrollToBottom();
   }, [translations]);
   
   return (
-    <div className="messages-container" ref={messagesContainerRef}>
-      {translations.length === 0 ? (
-        <div className="empty-messages">
-          <p>Translations will appear here</p>
+    <div className="translation-display">
+      {translations.map((translation) => (
+        <div key={translation.id} className="message-container">
+          <div className="message">
+            <p>{translation.text}</p>
+            <span className="timestamp">{translation.timestamp}</span>
+          </div>
         </div>
-      ) : (
-        <div className="messages-list">
-          {translations.map((message) => (
-            <div 
-              key={message.id} 
-              className={`message-bubble ${message.final ? 'final' : 'interim'}`}
-            >
-              <div className="message-timestamp">{message.timestamp}</div>
-              <div className="message-text">{message.text}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      ))}
+      <div ref={messagesEndRef} />
     </div>
   );
 };

@@ -12,6 +12,7 @@ function App() {
   const [translations, setTranslations] = useState([]);
   const [audioLevel, setAudioLevel] = useState(0);
   const [autoMode, setAutoMode] = useState(false);
+  const [micPermissionGranted, setMicPermissionGranted] = useState(false);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -161,6 +162,7 @@ function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
+      setMicPermissionGranted(true);
       return true;
     } catch (error) {
       console.error('Error requesting microphone permission:', error);
@@ -339,7 +341,8 @@ function App() {
   };
   
   const handleTranslateNowClick = async () => {
-    if (isRecording && !processingRef.current && audioChunksRef.current.length > 0) {
+    if (isRecording && !isProcessing) {
+      // We remove the check for audioChunks.length to ensure button is always clickable
       await cycleRecording();
     }
   };
@@ -354,12 +357,12 @@ function App() {
   
   return (
     <div className="app-container">
-      {translations.length === 0 ? (
+      {!isRecording ? (
         <div className="initial-screen">
-          <header className="initial-header">
+          <div className="initial-header">
             <h1>Fahim</h1>
             <p>Seek to Understand</p>
-          </header>
+          </div>
           
           <button 
             className="start-understanding-button"
@@ -367,15 +370,19 @@ function App() {
           >
             Start Understanding
           </button>
+          
+          <div className="initial-footer">
+            <p>© Zafar Labs {new Date().getFullYear()}</p>
+          </div>
         </div>
       ) : (
-        <>
-          <header className="app-header">
-            <h1>Fahim</h1>
-            <p>Seek to Understand</p>
-          </header>
-          
-          {translations.length > 0 && (
+        <div className="recording-screen">
+          <div className="fixed-header">
+            <div className="app-branding">
+              <h1>Fahim</h1>
+              <p>Seek to Understand</p>
+            </div>
+            
             <div className="translations-header">
               <h2>Translations</h2>
               <button 
@@ -386,47 +393,51 @@ function App() {
                 Clear All
               </button>
             </div>
-          )}
+          </div>
           
-          <TranslationDisplay translations={translations} />
+          <div className="translations-container">
+            <TranslationDisplay translations={translations} />
+          </div>
           
-          <div className="controls-container">
+          <div className="fixed-footer">
             <div className="bottom-controls">
               <div className="buttons-row">
                 <RecordButton 
                   isRecording={isRecording}
                   isProcessing={isProcessing}
                   onClick={toggleRecording}
-                  label={isRecording ? "Stop Understanding" : "Start Understanding"}
+                  label="Stop Understanding"
                 />
                 
                 {!autoMode && (
                   <TranslateNowButton 
                     onClick={handleTranslateNowClick}
-                    disabled={isProcessing || audioChunksRef.current.length === 0}
+                    disabled={isProcessing}
                   />
                 )}
               </div>
               
-              <AutoModeToggle 
-                enabled={autoMode}
-                onChange={handleAutoModeToggle}
-                disabled={isProcessing}
-                label="Auto Translation (Every 15-second)"
-              />
-              
-              {isRecording && (
-                <div className="listening-indicator">
-                  <span className="listening-dot"></span>
-                </div>
-              )}
+              <div className="bottom-controls-row">
+                <AutoModeToggle 
+                  enabled={autoMode}
+                  onChange={handleAutoModeToggle}
+                  disabled={isProcessing}
+                  label="Auto Translation (Every 15-second)"
+                />
+                
+                {isRecording && (
+                  <div className="listening-indicator">
+                    <span className="listening-dot"></span>
+                  </div>
+                )}
+              </div>
             </div>
+            
+            <footer>
+              <p>© Zafar Labs {new Date().getFullYear()}</p>
+            </footer>
           </div>
-          
-          <footer>
-            <p>© Zafar Labs {new Date().getFullYear()}</p>
-          </footer>
-        </>
+        </div>
       )}
     </div>
   );
