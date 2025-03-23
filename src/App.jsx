@@ -9,10 +9,9 @@ import './App.css';
 function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [translations, setTranslations] = useState([]); // Array of translation entries
+  const [translations, setTranslations] = useState([]);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [finalMode, setFinalMode] = useState(false);
-  const [autoMode, setAutoMode] = useState(false); // Auto mode toggle state
+  const [autoMode, setAutoMode] = useState(false);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -20,18 +19,15 @@ function App() {
   const analyserRef = useRef(null);
   const audioDataRef = useRef(new Uint8Array(0));
   const animationFrameRef = useRef(null);
-  const audioChunksRef = useRef([]);  // Store all chunks during recording
-  const allAudioChunksRef = useRef([]); // For final complete processing
+  const audioChunksRef = useRef([]);
+  const allAudioChunksRef = useRef([]);
   const processingRef = useRef(false);
   const translationIntervalRef = useRef(null);
   const autoModeIntervalRef = useRef(null);
-  const lastChunkTimestampRef = useRef([]); // Track timestamps for each chunk
-  const lastProcessedIndexRef = useRef(0); // Last processed chunk index
   
-  // Auto-translation interval in milliseconds
-  const AUTO_MODE_CYCLE_INTERVAL = 15000; // 15 seconds for auto mode cycle
+  const AUTO_MODE_CYCLE_INTERVAL = 15000; // 15 seconds
   
-  // Clean up resources when component unmounts
+  // Cleanup effect
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -52,33 +48,27 @@ function App() {
     };
   }, []);
 
-  // Effect to handle Auto Mode changes
+  // Auto mode effect
   useEffect(() => {
-    // Clear any existing auto mode interval
     if (autoModeIntervalRef.current) {
       clearInterval(autoModeIntervalRef.current);
       autoModeIntervalRef.current = null;
     }
     
-    // If auto mode is enabled and we're recording, set up the cycle
     if (autoMode && isRecording) {
       startAutoModeCycle();
     }
   }, [autoMode, isRecording]);
   
   const startAutoModeCycle = () => {
-    // Initial cycle starts after the interval
     autoModeIntervalRef.current = setTimeout(async () => {
       if (isRecording && autoMode) {
-        // Only proceed if we're still recording and in auto mode
         await cycleRecording();
         
-        // Set up recurring interval
         autoModeIntervalRef.current = setInterval(async () => {
           if (isRecording && autoMode) {
             await cycleRecording();
           } else {
-            // Clear interval if not recording or auto mode disabled
             clearInterval(autoModeIntervalRef.current);
             autoModeIntervalRef.current = null;
           }
@@ -88,36 +78,25 @@ function App() {
   };
   
   const cycleRecording = async () => {
-    console.log('Auto mode cycle: stopping recording');
-    
-    // Process the current recording
     await processCycleRecording();
     
-    // Wait a short moment before restarting
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Restart recording if still in auto mode
     if (autoMode && isRecording) {
-      console.log('Auto mode cycle: restarting recording');
       await restartRecording();
     }
   };
   
   const processCycleRecording = async () => {
-    // Stop the media recorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     
-    // Process the audio recorded so far
     if (allAudioChunksRef.current.length > 0) {
       setIsProcessing(true);
       
       try {
-        // Combine all audio chunks into a single blob
         const audioBlob = new Blob(allAudioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-        
-        console.log('Processing auto cycle recording of size:', audioBlob.size, 'bytes');
         
         const result = await translateAudioChunk(audioBlob).catch(error => {
           console.error('Error in cycle translateAudioChunk:', error);
@@ -125,9 +104,6 @@ function App() {
         });
         
         if (result) {
-          console.log('Cycle translation received:', result);
-          
-          // Add translation with timestamp
           const timestamp = new Date().toLocaleTimeString();
           setTranslations(prev => [
             ...prev, 
@@ -136,11 +112,9 @@ function App() {
               text: result, 
               timestamp,
               final: true,
-              isSessionEnd: false // Not a full stop, just a cycle
+              isSessionEnd: false
             }
           ]);
-        } else {
-          console.log('No cycle translation result received');
         }
       } catch (error) {
         console.error('Error processing cycle recording:', error);
@@ -151,70 +125,42 @@ function App() {
   };
   
   const restartRecording = async () => {
-    // Reset recording session variables but keep the stream
     audioChunksRef.current = [];
     allAudioChunksRef.current = [];
-    lastChunkTimestampRef.current = [];
-    lastProcessedIndexRef.current = 0;
     
-    // Create new media recorder with the existing stream
     if (streamRef.current) {
       try {
-        // Check for supported MIME types (important for mobile)
         let options;
         if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
           options = { 
             mimeType: 'audio/webm;codecs=opus',
             audioBitsPerSecond: 128000 
           };
-        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-          options = { 
-            mimeType: 'audio/webm',
-            audioBitsPerSecond: 128000 
-          };
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          options = { 
-            mimeType: 'audio/mp4',
-            audioBitsPerSecond: 128000 
-          };
         } else {
-          // Use default options
           options = {};
         }
         
-        // Create media recorder with selected options
         const mediaRecorder = new MediaRecorder(streamRef.current, options);
         mediaRecorderRef.current = mediaRecorder;
         
-        // Handle audio data
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
-            // Store the timestamp with each chunk
-            const timestamp = Date.now();
             audioChunksRef.current.push(event.data);
             allAudioChunksRef.current.push(event.data);
-            lastChunkTimestampRef.current.push(timestamp);
           }
         };
         
-        // Start media recorder
         mediaRecorder.start(500);
       } catch (error) {
         console.error('Error restarting media recorder:', error);
       }
     }
   };
-
+  
   const requestMicrophonePermission = async () => {
     try {
-      // Try to get access directly (most browsers will prompt if needed)
-      console.log('Requesting microphone permission...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // If we get here, permission was granted
-      // Stop the stream right away since we're just checking permissions
       stream.getTracks().forEach(track => track.stop());
-      console.log('Microphone permission granted');
       return true;
     } catch (error) {
       console.error('Error requesting microphone permission:', error);
@@ -224,74 +170,40 @@ function App() {
   
   const toggleRecording = async () => {
     if (isRecording) {
-      // Stop recording
       stopRecording();
-      // Keep the current state, do not reset to initial screen
-      setIsRecording(false);
     } else {
       try {
-        // First, check/request microphone permission
         const hasPermission = await requestMicrophonePermission();
         
         if (!hasPermission) {
-          // Show a more helpful error message for mobile users
-          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          if (isMobile) {
-            alert('Microphone access is required but was denied. On mobile, you may need to:\n\n' +
-                  '1. Check your browser settings\n' +
-                  '2. Make sure the site has permission to use your microphone\n' +
-                  '3. Try reloading the page and allow access when prompted');
-          } else {
-            alert('Please allow microphone access to use this app.');
-          }
+          alert('Please allow microphone access to use this app.');
           return;
         }
         
-        // Now start the recording
         await startRecording();
       } catch (error) {
         console.error('Error in toggleRecording:', error);
-        
-        // More detailed error message
-        const errorMessage = error.name === 'NotAllowedError' ? 
-          'Microphone access was denied. Please allow microphone access and try again.' :
-          'Error starting recording. Please make sure your device has a working microphone.';
-        
-        alert(errorMessage);
+        alert('Error starting recording. Please check microphone access.');
       }
     }
   };
   
   const startRecording = async () => {
-    // Reset recording session variables but DON'T clear translations history
-    setFinalMode(false);
     audioChunksRef.current = [];
     allAudioChunksRef.current = [];
-    lastChunkTimestampRef.current = [];
-    lastProcessedIndexRef.current = 0;
     
     try {
-      // Get audio stream with explicit constraints for better mobile compatibility
       const constraints = { 
         audio: { 
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
-          // Some mobile browsers work better with these explicit values
-          sampleRate: 44100,
-          channelCount: 1
+          autoGainControl: true
         } 
       };
       
-      console.log('Requesting audio stream with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       
-      // Log available audio tracks to verify we have audio
-      const audioTracks = stream.getAudioTracks();
-      console.log(`Got ${audioTracks.length} audio tracks:`, audioTracks.map(t => t.label));
-      
-      // Setup audio context and analyzer with error handling
       try {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         audioContextRef.current = audioContext;
@@ -305,70 +217,42 @@ function App() {
         
         audioDataRef.current = new Uint8Array(analyser.frequencyBinCount);
         
-        // Start monitoring audio levels
         startAudioMonitoring();
       } catch (audioContextError) {
         console.error('Error setting up audio context:', audioContextError);
-        // Continue anyway, as we can still record even if visualization fails
       }
       
-      // Check for supported MIME types (important for mobile)
       let options;
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         options = { 
           mimeType: 'audio/webm;codecs=opus',
           audioBitsPerSecond: 128000 
         };
-        console.log('Using audio/webm;codecs=opus');
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options = { 
-          mimeType: 'audio/webm',
-          audioBitsPerSecond: 128000 
-        };
-        console.log('Using audio/webm');
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        options = { 
-          mimeType: 'audio/mp4',
-          audioBitsPerSecond: 128000 
-        };
-        console.log('Using audio/mp4');
       } else {
-        // Use default options
         options = {};
-        console.log('Using default MediaRecorder options');
       }
       
-      // Create media recorder with selected options
-      console.log('Creating MediaRecorder with options:', options);
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       
-      // Handle audio data
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          // Store the timestamp with each chunk
-          const timestamp = Date.now();
           audioChunksRef.current.push(event.data);
           allAudioChunksRef.current.push(event.data);
-          lastChunkTimestampRef.current.push(timestamp);
-          
-          console.log(`Audio chunk received: ${event.data.size} bytes, timestamp: ${timestamp}`);
         }
       };
       
-      // Start media recorder
       mediaRecorder.start(500);
-      console.log('MediaRecorder started');
+      
       setIsRecording(true);
       
-      // Set up auto mode cycle if enabled
       if (autoMode) {
         startAutoModeCycle();
       }
       
     } catch (error) {
       console.error('Error in startRecording:', error);
-      throw error; // Re-throw to be handled by toggleRecording
+      throw error;
     }
   };
   
@@ -378,89 +262,56 @@ function App() {
       
       analyserRef.current.getByteFrequencyData(audioDataRef.current);
       
-      // Calculate RMS (Root Mean Square) for better volume representation
       let sumSquares = 0;
       for (let i = 0; i < audioDataRef.current.length; i++) {
         sumSquares += Math.pow(audioDataRef.current[i], 2);
       }
       const rms = Math.sqrt(sumSquares / audioDataRef.current.length);
       
-      // Scale to 0-100 for UI
       const scaledLevel = Math.min(100, Math.max(0, rms * 100 / 128));
       setAudioLevel(scaledLevel);
       
-      // Continue monitoring if still recording
       if (isRecording) {
         animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
       }
     };
     
-    // Start the monitoring loop
     animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
   };
   
   const stopRecording = () => {
-    // Stop auto mode interval
     if (autoModeIntervalRef.current) {
       clearInterval(autoModeIntervalRef.current);
-autoModeIntervalRef.current = null;
+      autoModeIntervalRef.current = null;
     }
     
-    // Stop auto-translation interval
-    if (translationIntervalRef.current) {
-      clearInterval(translationIntervalRef.current);
-      translationIntervalRef.current = null;
-    }
-    
-    // Stop media recorder
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+    if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
     }
     
-    // Stop audio context
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
     
-    // Stop animation frame
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    // Stop all tracks in the stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     
-    // Process the complete recording using allAudioChunksRef
     if (allAudioChunksRef.current.length > 0) {
-      setFinalMode(true);
       processFinalRecording();
     }
     
-    // Reset audio level
+    setIsRecording(false);
     setAudioLevel(0);
-  };
-  
-  // Handle "Translate Now" button - stops current recording, translates, then restarts
-  const handleTranslateNowClick = async () => {
-    if (isRecording && !processingRef.current && audioChunksRef.current.length > 0) {
-      console.log('Translate Now clicked: cycling recording');
-      await cycleRecording();
-    }
   };
   
   const processFinalRecording = async () => {
     setIsProcessing(true);
     
     try {
-      // Combine all audio chunks into a single blob
       const audioBlob = new Blob(allAudioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-      
-      console.log('Processing final recording of size:', audioBlob.size, 'bytes');
       
       const result = await translateAudioChunk(audioBlob).catch(error => {
         console.error('Error in final translateAudioChunk:', error);
@@ -468,9 +319,6 @@ autoModeIntervalRef.current = null;
       });
       
       if (result) {
-        console.log('Final translation received:', result);
-        
-        // Add final translation with timestamp
         const timestamp = new Date().toLocaleTimeString();
         setTranslations(prev => [
           ...prev, 
@@ -479,11 +327,9 @@ autoModeIntervalRef.current = null;
             text: result, 
             timestamp,
             final: true,
-            isSessionEnd: true // Mark this as a session end for visual separation
+            isSessionEnd: true
           }
         ]);
-      } else {
-        console.log('No final translation result received');
       }
     } catch (error) {
       console.error('Error processing final recording:', error);
@@ -492,20 +338,23 @@ autoModeIntervalRef.current = null;
     }
   };
   
-  // Clear all translations
+  const handleTranslateNowClick = async () => {
+    if (isRecording && !processingRef.current && audioChunksRef.current.length > 0) {
+      await cycleRecording();
+    }
+  };
+  
   const handleClearTranslations = () => {
     setTranslations([]);
   };
   
-  // Handle auto mode toggle
   const handleAutoModeToggle = () => {
     setAutoMode(!autoMode);
   };
   
   return (
     <div className="app-container">
-      {!isRecording && translations.length === 0 ? (
-        // Initial clean interface when not recording and no translations
+      {translations.length === 0 ? (
         <div className="initial-screen">
           <header className="initial-header">
             <h1>Fahim</h1>
@@ -520,7 +369,6 @@ autoModeIntervalRef.current = null;
           </button>
         </div>
       ) : (
-        // Recording or translation interface
         <>
           <header className="app-header">
             <h1>Fahim</h1>
@@ -543,17 +391,6 @@ autoModeIntervalRef.current = null;
           <TranslationDisplay translations={translations} />
           
           <div className="controls-container">
-            {isRecording && (
-              <div className="audio-level-indicator">
-                <div className="audio-level-bar">
-                  <div 
-                    className="audio-level-fill"
-                    style={{ width: `${audioLevel}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-            
             <div className="bottom-controls">
               <div className="buttons-row">
                 <RecordButton 
@@ -563,7 +400,7 @@ autoModeIntervalRef.current = null;
                   label={isRecording ? "Stop Understanding" : "Start Understanding"}
                 />
                 
-                {isRecording && !autoMode && (
+                {!autoMode && (
                   <TranslateNowButton 
                     onClick={handleTranslateNowClick}
                     disabled={isProcessing || audioChunksRef.current.length === 0}
@@ -581,13 +418,6 @@ autoModeIntervalRef.current = null;
               {isRecording && (
                 <div className="listening-indicator">
                   <span className="listening-dot"></span>
-                  Listening...
-                </div>
-              )}
-              
-              {isProcessing && (
-                <div className="processing-indicator">
-                  Processing translation...
                 </div>
               )}
             </div>
