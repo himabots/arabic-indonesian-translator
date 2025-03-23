@@ -358,8 +358,8 @@ function App() {
   
   const handleClearTranslations = () => {
     setTranslations([]);
-    // If we clear all translations, go back to initial screen
-    setShowInitialScreen(true);
+    // Only go back to initial screen if we have no translations
+    // This way, Clear All just clears translations but stays on the translation screen
   };
   
   const handleAutoModeToggle = () => {
