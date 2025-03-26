@@ -100,9 +100,9 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Contact
 
-Zafar Labs - [Your Contact Information]
+Zafar Labs - himawan@zafarlabs.com
 
-Project Link: [https://github.com/your-org/fahim-translator](https://github.com/your-org/fahim-translator)
+Project Link: [(https://github.com/himabots/arabic-indonesian-translator)](https://github.com/himabots/arabic-indonesian-translator)
 
 ## Acknowledgments
 
