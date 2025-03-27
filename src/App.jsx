@@ -352,91 +352,16 @@ function App() {
     }
   };
   
-  const handleTranslateNowClick = async () => {
-    if (isRecording && !isProcessing) {
-      // First stop the current recorder to finalize the chunk
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-
-      // Small delay to ensure the data is available
-      await new Promise(resolve => setTimeout(resolve, 100));
-    
-      // Only process if we have audio to process
-      if (allAudioChunksRef.current.length > 0) {
-        // Process the current audio
-        setIsProcessing(true);
-      
-        try {
-          const audioBlob = new Blob(allAudioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-        
-          const result = await translateAudioChunk(audioBlob).catch(error => {
-            console.error('Error in translateAudioChunk:', error);
-            return '';
-          });
-        
-          if (result) {
-            const timestamp = new Date().toLocaleTimeString();
-            setTranslations(prev => [
-              ...prev, 
-              { 
-                id: Date.now(), 
-                text: result, 
-                timestamp,
-                final: true,
-                isSessionEnd: false
-              }
-            ]);
-          }
-        } catch (error) {
-          console.error('Error processing recording:', error);
-        } finally {
-          setIsProcessing(false);
-        }
-      }
-    
-      // Restart the recorder but don't clear accumulated audio
-      // This keeps continuous recording but ensures clean chunk boundaries
-      if (streamRef.current) {
-        try {
-          let options;
-          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-            options = { 
-              mimeType: 'audio/webm;codecs=opus',
-              audioBitsPerSecond: 64000 
-            };
-          } else {
-            options = {};
-          }
-        
-          const mediaRecorder = new MediaRecorder(streamRef.current, options);
-          mediaRecorderRef.current = mediaRecorder;
-        
-          mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              audioChunksRef.current.push(event.data);
-              allAudioChunksRef.current.push(event.data);
-            }
-          };
-        
-          mediaRecorder.start(500);
-        } catch (error) {
-          console.error('Error restarting media recorder:', error);
-        }
-      }
-    }
-  };
   
-  /*const handleTranslateNowClick = async () => {
+  const handleTranslateNowClick = async () => {
     if (isRecording && !isProcessing) {
       // We remove the check for audioChunks.length to ensure button is always clickable
       await cycleRecording();
     
-      if (!autoMode) {
-        await restartRecording();
-      }
+      await restartRecording();
+      
     }
-  };*/
+  };
   
   const handleClearTranslations = () => {
     setTranslations([]);
