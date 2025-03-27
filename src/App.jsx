@@ -206,9 +206,11 @@ function App() {
     try {
       const constraints = { 
         audio: { 
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+          echoCancellation: false,  // Turn off echo cancellation for ambient sound
+          noiseSuppression: false,  // Turn off noise suppression to capture distant speech
+          autoGainControl: true,    // Keep auto gain control to boost quiet sounds
+          channelCount: 1,          // Mono audio is better for speech recognition
+          sampleRate: 16000         // Match Whisper's preferred sample rate
         } 
       };
       
