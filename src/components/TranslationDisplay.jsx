@@ -2,6 +2,48 @@ import React, { useRef, useEffect } from 'react';
 import './TranslationDisplay.css';
 
 const TranslationDisplay = ({ translations }) => {
+  const containerRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  
+  useEffect(() => {
+    // Force reflow when translations change
+    if (containerRef.current) {
+      // This triggers a reflow by reading a layout property
+      const height = containerRef.current.offsetHeight;
+      
+      // Then make a small style change to force a repaint
+      containerRef.current.style.display = 'none';
+      // This triggers another reflow
+      void containerRef.current.offsetHeight;
+      containerRef.current.style.display = 'flex';
+      
+      // Finally scroll to bottom
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [translations]);
+  
+  return (
+    <div className="translation-display" ref={containerRef}>
+      {translations.map((translation, index) => (
+        <div key={translation.id} className="message-container">
+          <div className="message">
+            <p>{translation.text}</p>
+            <span className="timestamp">{translation.timestamp}</span>
+          </div>
+        </div>
+      ))}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+};
+
+export default TranslationDisplay;
+
+
+/*import React, { useRef, useEffect } from 'react';
+import './TranslationDisplay.css';
+
+const TranslationDisplay = ({ translations }) => {
   const messagesEndRef = useRef(null);
   
   const scrollToBottom = () => {
@@ -34,7 +76,7 @@ const TranslationDisplay = ({ translations }) => {
 export default TranslationDisplay;
 
 
-/*import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import './TranslationDisplay.css';
 
 const TranslationDisplay = ({ translations }) => {
