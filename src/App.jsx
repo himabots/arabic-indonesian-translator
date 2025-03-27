@@ -99,12 +99,16 @@ function App() {
       
       try {
         const audioBlob = new Blob(allAudioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+
+        const processedChunksLength = allAudioChunksRef.current.length;
         
         const result = await translateAudioChunk(audioBlob).catch(error => {
           console.error('Error in cycle translateAudioChunk:', error);
           return '';
         });
-        
+
+        allAudioChunksRef.current = allAudioChunksRef.current.slice(processedChunksLength);
+      
         if (result) {
           const timestamp = new Date().toLocaleTimeString();
           setTranslations(prev => [
