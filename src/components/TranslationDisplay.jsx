@@ -69,4 +69,4 @@ const TranslationDisplay = ({ translations }) => {
   );
 };
 
-export default TranslationDisplay;
+export default TranslationDisplay;*/
