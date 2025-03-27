@@ -61,23 +61,22 @@ export const processAudioChunk = async (audioBlob) => {
     // Write the input file to FFmpeg's virtual file system
     await ffmpeg.writeFile('input.webm', inputData);
     
-    // Run FFmpeg command to create a proper MP3 file with headers
+    // Run FFmpeg command to create a proper wav file with headers
     // -af aresample=async=1 helps with uneven audio durations
     await ffmpeg.exec([
       '-i', 'input.webm',
-      '-c:a', 'libmp3lame',
-      '-b:a', '128k',
+      '-c:a', 'pcm_s16le',  // PCM 16-bit little-endian (standard WAV format)
       '-af', 'aresample=async=1',
-      '-ar', '44100',
-      '-ac', '1',
-      'output.mp3'
+      '-ar', '16000',       // 16kHz sample rate optimized for Whisper
+      '-ac', '1',           // Mono audio
+      'output.wav'
     ]);
     
     // Read the output file
-    const outputData = await ffmpeg.readFile('output.mp3');
+    const outputData = await ffmpeg.readFile('output.wav');
     
     // Create a new blob with the processed data
-    const processedBlob = new Blob([outputData], { type: 'audio/mp3' });
+    const processedBlob = new Blob([outputData], { type: 'audio/wav' });
     console.log(`Processed audio: ${audioBlob.size} bytes -> ${processedBlob.size} bytes`);
     
     return processedBlob;
