@@ -10,6 +10,42 @@ const TranslationDisplay = ({ translations }) => {
   
   useEffect(() => {
     scrollToBottom();
+    console.log("Number of translations:", translations.length);
+  }, [translations]);
+  
+  return (
+    <div className="translation-display">
+      {translations.map((translation, index) => (
+        <div key={translation.id} className="message-container">
+          <div 
+            className="message"
+            style={index === 0 ? {border: '1px solid red'} : {}}
+          >
+            <p>{translation.text}</p>
+            <span className="timestamp">{translation.timestamp}</span>
+          </div>
+        </div>
+      ))}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+};
+
+export default TranslationDisplay;
+
+
+/*import React, { useRef, useEffect } from 'react';
+import './TranslationDisplay.css';
+
+const TranslationDisplay = ({ translations }) => {
+  const messagesEndRef = useRef(null);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  useEffect(() => {
+    scrollToBottom();
     // Add a console log to see what translations are being rendered
     console.log("Rendering translations:", translations);
   }, [translations]);
@@ -40,7 +76,7 @@ const TranslationDisplay = ({ translations }) => {
 export default TranslationDisplay;
 
 
-/*import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import './TranslationDisplay.css';
 
 const TranslationDisplay = ({ translations }) => {
