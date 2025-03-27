@@ -5,6 +5,7 @@ import TranslationDisplay from './components/TranslationDisplay';
 import AutoModeToggle from './components/AutoModeToggle';
 import { translateAudioChunk } from './api/translateAudio';
 import './App.css';
+import { Analytics } from '@vercel/analytics/react';
 
 function App() {
   const [isRecording, setIsRecording] = useState(false);
