@@ -12,7 +12,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [translations, setTranslations] = useState([]);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [autoMode, setAutoMode] = useState(true);
+  const [autoMode, setAutoMode] = useState(false);
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
   const [showInitialScreen, setShowInitialScreen] = useState(true);
   
