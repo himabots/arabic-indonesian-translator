@@ -357,8 +357,10 @@ function App() {
       // We remove the check for audioChunks.length to ensure button is always clickable
       await cycleRecording();
     }
-    if (!autoMode) {
-      await restartRecording();
+      if (!autoMode) {
+        await restartRecording();
+      }
+    }
   };
   
   const handleClearTranslations = () => {
