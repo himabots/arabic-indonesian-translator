@@ -375,7 +375,12 @@ function App() {
               <h1>Fahim</h1>
               <p>Seek to Understand</p>
             </div>
-            
+            <div className="language-selector">
+              <select disabled>
+                <option value="indonesian">Indonesian</option>
+              </select>
+            </div>
+
             <button 
               className="start-understanding-button"
               onClick={toggleRecording}
@@ -392,7 +397,13 @@ function App() {
         <div className="recording-screen">
           <div className="fixed-header">
             <div className="app-branding">
-              <h1>Fahim</h1>
+              <div className="logo-container">
+                <svg className="logo-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="16" cy="16" r="16" fill="#2563eb"/>
+                  <path d="M10 16H22M22 16L17 11M22 16L17 21" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <h1>Fahim</h1>
+              </div>
               <p>Seek to Understand</p>
             </div>
             
