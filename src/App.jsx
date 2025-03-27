@@ -93,6 +93,48 @@ function App() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+  
+    if (allAudioChunksRef.current.length > 0) {
+      setIsProcessing(true);
+    
+      try {
+      // Create a copy of the current chunks for processing
+        const chunksToProcess = [...allAudioChunksRef.current];
+      
+      // Clear the accumulated chunks BEFORE processing
+        allAudioChunksRef.current = [];
+      
+        const audioBlob = new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' });
+      
+        const result = await translateAudioChunk(audioBlob).catch(error => {
+          console.error('Error in cycle translateAudioChunk:', error);
+          return '';
+        });
+      
+        if (result) {
+          const timestamp = new Date().toLocaleTimeString();
+          setTranslations(prev => [
+            ...prev, 
+            { 
+              id: Date.now(), 
+              text: result, 
+              timestamp,
+              final: true,
+              isSessionEnd: false
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error('Error processing cycle recording:', error);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+  /*const processCycleRecording = async () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     
     if (allAudioChunksRef.current.length > 0) {
       setIsProcessing(true);
@@ -124,7 +166,7 @@ function App() {
         setIsProcessing(false);
       }
     }
-  };
+  };*/
   
   const restartRecording = async () => {
     audioChunksRef.current = [];
