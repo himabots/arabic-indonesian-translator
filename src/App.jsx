@@ -356,7 +356,7 @@ function App() {
     if (isRecording && !isProcessing) {
       // We remove the check for audioChunks.length to ensure button is always clickable
       await cycleRecording();
-    }
+    
       if (!autoMode) {
         await restartRecording();
       }
@@ -453,7 +453,7 @@ function App() {
                   enabled={autoMode}
                   onChange={handleAutoModeToggle}
                   disabled={isProcessing || !isRecording}
-                  label="Auto Translation (Every 15-second)"
+                  label="Smart Pause Detection (Experimental)"
                 />
                 
                 {isRecording && (
