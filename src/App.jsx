@@ -427,7 +427,7 @@ function App() {
     }
   };
   
-  const handleTranslateNowClick = async () => {
+  /*const handleTranslateNowClick = async () => {
     if (isRecording && !isProcessing) {
       // We remove the check for audioChunks.length to ensure button is always clickable
       await cycleRecording();
@@ -436,7 +436,7 @@ function App() {
         await restartRecording();
       }
     }
-  };
+  };*/
   
   const handleClearTranslations = () => {
     setTranslations([]);
